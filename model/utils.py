@@ -189,11 +189,16 @@ def read_file(_path, delim='\t'):
         delim = '\t'
     elif delim == 'space':
         delim = ' '
+    elif delim == 'comma':
+        delim = ','
     with open(_path, 'r') as f:
         for line in f:
-            line = line.strip().split(delim)
-            line = [float(i) for i in line]
-            data.append(line)
+            if(line != '\n'):
+                line = line.strip().split(delim)
+                line = [float(i) for i in line]
+                data.append(line)
+    if data == []:
+        data = [[],[1]]
     return np.asarray(data)
 
 def acc_to_abs(acc,obs,delta=1):

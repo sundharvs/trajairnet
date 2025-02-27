@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 from model.trajairnet import TrajAirNet
 from model.utils import ade, fde, TrajectoryDataset, seq_collate
 
+import pdb
+import matplotlib.pyplot as plt
 def main():
     
     parser=argparse.ArgumentParser(description='Test TrajAirNet model')
@@ -68,50 +70,39 @@ def main():
     checkpoint = torch.load(model_path, map_location=device)
     model.load_state_dict(checkpoint['model_state_dict'])
 
-    test_ade_loss, test_fde_loss = test(model,loader_test,device)
-
-    print("Test ADE Loss: ",test_ade_loss,"Test FDE Loss: ",test_fde_loss)
+    test(model,loader_test,device)
 
 def test(model,loader_test,device):
-    tot_ade_loss = 0
-    tot_fde_loss = 0
-    tot_batch = 0
     for batch in tqdm(loader_test):
-        tot_batch += 1
+        # batch = next(iter(loader_test))
         batch = [tensor.to(device) for tensor in batch]
 
         obs_traj_all , pred_traj_all, obs_traj_rel_all, pred_traj_rel_all, context, seq_start  = batch
         num_agents = obs_traj_all.shape[1]
-        
-        best_ade_loss = float('inf')
-        best_fde_loss = float('inf')
-        
-        for i in range(5):
+                
+        plt.figure()
+        plt.grid()
+        plt.xlim([-4, 4])
+        plt.ylim([-2, 2])
+
+        for i in range(100):
             z = torch.randn([1,1 ,128]).to(device)
-            
             adj = torch.ones((num_agents,num_agents))
             recon_y_all = model.inference(torch.transpose(obs_traj_all,1,2),z,adj,torch.transpose(context,1,2))
             
-            ade_loss = 0
-            fde_loss = 0
             for agent in range(num_agents):
-                obs_traj = np.squeeze(obs_traj_all[:,agent,:].cpu().numpy())
-                pred_traj = np.squeeze(pred_traj_all[:,agent,:].cpu().numpy())
                 recon_pred = np.squeeze(recon_y_all[agent].detach().cpu().numpy()).transpose()
-                ade_loss += ade(recon_pred, pred_traj)
-                fde_loss += fde((recon_pred), (pred_traj))
-           
-            
-            ade_total_loss = ade_loss/num_agents
-            fde_total_loss = fde_loss/num_agents
-            if ade_total_loss<best_ade_loss:
-                best_ade_loss = ade_total_loss
-                best_fde_loss = fde_total_loss
-
-        tot_ade_loss += best_ade_loss
-        tot_fde_loss += best_fde_loss
-    return tot_ade_loss/(tot_batch),tot_fde_loss/(tot_batch)
-
+                plt.plot(recon_pred[:,0],recon_pred[:,1], color='green', alpha=0.2, linewidth=2)
+        
+        for agent in range(num_agents):
+            obs_traj = np.squeeze(obs_traj_all[:,agent,:].cpu().numpy())
+            pred_traj = np.squeeze(pred_traj_all[:,agent,:].cpu().numpy())
+            plt.plot(obs_traj[:,0],obs_traj[:,1], color='blue', linewidth=2)
+            plt.arrow(obs_traj[-1,0], obs_traj[-1,1], pred_traj[0,0] - obs_traj[-1,0], pred_traj[0,1] - obs_traj[-1,1], color='black',width=0.03)
+            plt.plot(pred_traj[:,0],pred_traj[:,1], color='red', linewidth=2)
+        
+        plt.savefig('meow.png')
+        break
 
 if __name__=='__main__':
     main()
