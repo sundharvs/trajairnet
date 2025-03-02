@@ -6,6 +6,7 @@ from collections import defaultdict
 import datetime
 import pandas as pd
 import numpy as np
+import ast
 
 from utils import get_runway_transform, convert_frame
 from getWindVelocity import wind_params_runway_frame
@@ -32,9 +33,36 @@ class Data:
         
         self.weather = pd.read_csv(self.weather_path)
         self.weather['datetime'] = pd.to_datetime(self.weather['valid'],format="%Y-%m-%d %H:%M")
-#         print(self.weather)
+#         print(self.weather)f
 
-    
+    def parse_date_time(self, date_str, time_str):
+        try:
+            # Remove the 'u' prefix and other unwanted characters
+            date_str = date_str.replace("u'", "'").replace("[", "").replace("]", "").replace("'", "").replace(" ", "")
+            time_str = time_str.replace("u'", "'").replace("[", "").replace("]", "").replace("'", "").replace(" ", "")
+            
+            # Split into components
+            year, month, day = date_str.split(',')
+            hour, minute, seconds_full = time_str.split(',')
+            
+            # Handle microseconds - truncate to 6 digits for datetime compatibility
+            if '.' in seconds_full:
+                seconds_parts = seconds_full.split('.')
+                seconds = seconds_parts[0]
+                microseconds = seconds_parts[1][:6]  # Truncate to 6 digits max
+            else:
+                seconds = seconds_full
+                microseconds = '0'
+            
+            # Format as a standard datetime string
+            formatted_datetime = f"{month}/{day}/{year} {hour}:{minute}:{seconds}.{microseconds}"
+            return datetime.datetime.strptime(formatted_datetime, '%m/%d/%Y %H:%M:%S.%f')
+        except Exception as e:
+            print(f"Error parsing date/time: {e}")
+            print(f"Date string: {date_str}")
+            print(f"Time string: {time_str}")
+            return None
+                
     def process_data(self):
         ##main loop: Reads each file
         for i in self.filelist:
@@ -49,7 +77,11 @@ class Data:
                         Altitude = row["Altitude"]
                         k = Range + Bearing + ID
                         if k not in self.data and int(Altitude)<6000 and float(Range)<5:
-                            self.data[k]["Frame"] = datetime.datetime.strptime(row["Date"]+" "+row["Time"], '%m/%d/%Y %H:%M:%S.%f')
+                            frame_time = self.parse_date_time(row["Date"], row["Time"])
+                            if frame_time is None:
+                                continue
+                            
+                            self.data[k]["Frame"] = frame_time
                             self.data[k]["ID"] = ID
                             self.data[k]["Range"] = Range
                             self.data[k]["Bearing"] = Bearing

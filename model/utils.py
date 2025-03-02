@@ -203,7 +203,7 @@ def read_file(_path, delim='\t'):
         for line in f:
             if(line != '\n'):
                 line = line.strip().split(delim)
-                line = [float(i) for i in line]
+                line = [float(i) for i in line[0:-2]]
                 data.append(line)
     if data == []:
         data = [[],[1]]
