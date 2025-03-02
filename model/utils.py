@@ -43,15 +43,19 @@ class TrajectoryDataset(Dataset):
         self.delim = delim
         self.seq_final_len = self.obs_len + int(math.ceil(self.pred_len/self.step))
         all_files = os.listdir(self.data_dir)
+        all_files = sorted(all_files, key=lambda x: int(os.path.splitext(x)[0])) # sort txt files in number order - sundhar
         all_files = [os.path.join(self.data_dir, _path) for _path in all_files]
         num_agents_in_seq = []
         seq_list = []
         seq_list_rel = []
         context_list = []
-        for path in tqdm(all_files):
+        
+        self.seq_file_map = []  # New list to store file indices
+        
+        for path_idx, path in enumerate(tqdm(all_files)):
             # print(path)
             data = read_file(path, delim)
-            if (len(data[:,0])==0):
+            if ((data.ndim == 1 and len(data[0])==0) or len(data[:,0])==0):
                 print("File is empty")
                 continue
             frames = np.unique(data[:, 0]).tolist()
@@ -107,6 +111,7 @@ class TrajectoryDataset(Dataset):
                     seq_list.append(curr_seq[:num_agents_considered])
                     seq_list_rel.append(curr_seq_rel[:num_agents_considered])
                     context_list.append(curr_context[:num_agents_considered])
+                    self.seq_file_map.append(path_idx)
 
         self.num_seq = len(seq_list)
         seq_list = np.concatenate(seq_list, axis=0)
@@ -148,6 +153,9 @@ class TrajectoryDataset(Dataset):
             self.obs_traj_rel[start:end, :], self.pred_traj_rel[start:end, :], self.obs_context[start:end, :]
         ]
         return out
+    
+    def get_file_index(self, seq_index):
+        return self.seq_file_map[seq_index]
 
 ### Metrics 
 
