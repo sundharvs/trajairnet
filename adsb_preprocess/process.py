@@ -1,4 +1,3 @@
-
 import argparse
 import os
 import csv
@@ -76,6 +75,10 @@ class Data:
                 df_sorted['Crosswind'] = utc_timestamps.apply(lambda l: l.y,axis =1)
 #                 df_sorted.insert(5, "Headwind", headwind)
 #                 df_sorted.insert(6, "Crosswind", crosswind)
+                
+                # Save the timestamp before dropping the utc column
+                df_sorted['Timestamp'] = df_sorted["utc"].dt.strftime('%Y-%m-%d %H:%M:%S')
+                
                 df_sorted = df_sorted.drop(["utc","wind"],axis=1)
 #                 print(df_sorted)
                     
@@ -111,7 +114,7 @@ class Data:
         filename = self.base_path + "/processed_data/" + str(self.out) + ".txt" 
         print("Filename = ",filename)
         file = open(filename,'w')
-        csv_writer = csv.DictWriter(file, fieldnames=["Frame","ID","x","y","z","Headwind","Crosswind"],delimiter = " ")
+        csv_writer = csv.DictWriter(file, fieldnames=["Frame","ID","x","y","z","Headwind","Crosswind","Timestamp"],delimiter = " ")
         first_time = int(df.iloc[0]["Frame"])
         for index , row in df.iterrows():
             last_time = int(row["Frame"])
@@ -124,7 +127,7 @@ class Data:
                 filename = self.base_path + "/processed_data/" + str(self.out) + ".txt"
                 print(filename)
                 file = open(filename,'w')
-                csv_writer = csv.DictWriter(file,fieldnames=["Frame","ID","x","y","z","Headwind","Crosswind"],delimiter = " ")
+                csv_writer = csv.DictWriter(file,fieldnames=["Frame","ID","x","y","z","Headwind","Crosswind","Timestamp"],delimiter = " ")
             first_time = last_time
         self.out = self.out + 1    
         file.close()
@@ -181,8 +184,3 @@ if __name__ == '__main__':
     print("Processing data from ",data_path)
     weather_path = os.getcwd() + args.dataset_folder + args.weather_folder + "/weather.csv"
     data = Data(data_path,weather_path)
-      
-            
-            
-
-      
