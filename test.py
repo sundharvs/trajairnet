@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--obs',type=int,default=11)
     parser.add_argument('--preds',type=int,default=120)
     parser.add_argument('--preds_step',type=int,default=10)
+    parser.add_argument('--skip', type=int, default=1)
     
     ##Network params
     parser.add_argument('--input_channels',type=int,default=3)
@@ -55,8 +56,8 @@ def main():
     datapath = os.getcwd() + args.dataset_folder + args.dataset_name + "/processed_data/"
 
     print("Loading Test Data from ",datapath + "test")
-    dataset_test = TrajectoryDataset(datapath + "test", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim)
-    loader_test = DataLoader(dataset_test,batch_size=1,num_workers=4,shuffle=True,collate_fn=seq_collate)
+    dataset_test = TrajectoryDataset(datapath + "test", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim, skip=args.skip)
+    loader_test = DataLoader(dataset_test,batch_size=1,num_workers=4,shuffle=False,collate_fn=seq_collate)
 
     ##Load model
     model = TrajAirNet(args)
@@ -76,7 +77,10 @@ def test(model,loader_test,device):
     tot_ade_loss = 0
     tot_fde_loss = 0
     tot_batch = 0
-    for batch in tqdm(loader_test):
+    
+    loss_records = []
+    
+    for batch_idx, batch in enumerate(tqdm(loader_test)):
         tot_batch += 1
         batch = [tensor.to(device) for tensor in batch]
 
@@ -86,7 +90,7 @@ def test(model,loader_test,device):
         best_ade_loss = float('inf')
         best_fde_loss = float('inf')
         
-        for i in range(5):
+        for i in range(1):
             z = torch.randn([1,1 ,128]).to(device)
             
             adj = torch.ones((num_agents,num_agents))
@@ -110,6 +114,15 @@ def test(model,loader_test,device):
 
         tot_ade_loss += best_ade_loss
         tot_fde_loss += best_fde_loss
+        
+        loss_records.append((batch_idx, best_ade_loss, best_fde_loss))
+        
+    worst_cases = sorted(loss_records, key=lambda x: x[1], reverse=True)[:10]  # Sorting by ADE (change x[1] to x[2] for FDE)
+
+    print("\nTop 10 Worst Cases (By ADE):")
+    for idx, ade_loss, fde_loss in worst_cases:
+        print(f"Batch Index: {idx}, ADE: {ade_loss:.4f}, FDE: {fde_loss:.4f}")
+
     return tot_ade_loss/(tot_batch),tot_fde_loss/(tot_batch)
 
 
