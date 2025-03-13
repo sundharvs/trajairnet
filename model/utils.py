@@ -49,6 +49,7 @@ class TrajectoryDataset(Dataset):
         seq_list = []
         seq_list_rel = []
         context_list = []
+        timestamp_list = []
         
         self.seq_file_map = []  # New list to store file indices
         
@@ -75,6 +76,7 @@ class TrajectoryDataset(Dataset):
                                          self.seq_final_len))
                 curr_seq = np.zeros((len(agents_in_curr_seq), 3,self.seq_final_len ))
                 curr_context =  np.zeros((len(agents_in_curr_seq), 2,self.seq_final_len ))
+                curr_timestamp = np.zeros((len(agents_in_curr_seq), 1, self.seq_final_len))
                 num_agents_considered = 0
                 for _, agent_id in enumerate(agents_in_curr_seq):
                     curr_agent_seq = curr_seq_data[curr_seq_data[:, 1] ==
@@ -87,8 +89,9 @@ class TrajectoryDataset(Dataset):
                     obs = curr_agent_seq[:,:obs_len]
                     pred = curr_agent_seq[:,obs_len+step-1::step]
                     curr_agent_seq = np.hstack((obs,pred))
-                    context = curr_agent_seq[-2:,:]
+                    context = curr_agent_seq[-3:-1,:]
                     assert(~np.isnan(context).any())
+                    timestamp = curr_agent_seq[-1:,:]
                     
                     # Make coordinates relative
                     rel_curr_agent_seq = np.zeros(curr_agent_seq.shape)
@@ -104,25 +107,31 @@ class TrajectoryDataset(Dataset):
                     curr_seq[_idx, :, pad_front:pad_end] = curr_agent_seq[:3,:]
                     curr_seq_rel[_idx, :, pad_front:pad_end] = rel_curr_agent_seq[:3,:]
                     curr_context[_idx,:,pad_front:pad_end] = context
+                    curr_timestamp[_idx,:,pad_front:pad_end] = timestamp
                     num_agents_considered += 1
+            
 
                 if num_agents_considered > min_agent:
                     num_agents_in_seq.append(num_agents_considered)
                     seq_list.append(curr_seq[:num_agents_considered])
                     seq_list_rel.append(curr_seq_rel[:num_agents_considered])
                     context_list.append(curr_context[:num_agents_considered])
+                    timestamp_list.append(curr_timestamp[:num_agents_considered])
                     self.seq_file_map.append(path_idx)
 
         self.num_seq = len(seq_list)
         seq_list = np.concatenate(seq_list, axis=0)
         seq_list_rel = np.concatenate(seq_list_rel, axis=0)
         context_list = np.concatenate(context_list, axis=0)
+        timestamp_list = np.concatenate(timestamp_list, axis=0)
 
         # Convert numpy -> Torch Tensor
         self.obs_traj = torch.from_numpy(
             seq_list[:, :, :self.obs_len]).type(torch.float)
         self.obs_context = torch.from_numpy(
             context_list[:,:,:self.obs_len]).type(torch.float)
+        self.obs_timestamp = torch.from_numpy(
+            timestamp_list[:,:,:self.obs_len]).type(torch.double)
         self.pred_traj = torch.from_numpy(
             seq_list[:, :, self.obs_len:]).type(torch.float)
         self.obs_traj_rel = torch.from_numpy(
@@ -150,7 +159,8 @@ class TrajectoryDataset(Dataset):
 
         out = [
             self.obs_traj[start:end, :], self.pred_traj[start:end, :],
-            self.obs_traj_rel[start:end, :], self.pred_traj_rel[start:end, :], self.obs_context[start:end, :]
+            self.obs_traj_rel[start:end, :], self.pred_traj_rel[start:end, :], self.obs_context[start:end, :],
+            self.obs_timestamp[start:end, :]
         ]
         return out
     
@@ -203,7 +213,7 @@ def read_file(_path, delim='\t'):
         for line in f:
             if(line != '\n'):
                 line = line.strip().split(delim)
-                line = [float(i) for i in line[0:-2]]
+                line = [float(i) for i in line]
                 data.append(line)
     if data == []:
         data = [[],[1]]
@@ -221,7 +231,7 @@ def acc_to_abs(acc,obs,delta=1):
     
 
 def seq_collate(data):
-    (obs_seq_list, pred_seq_list, obs_seq_rel_list, pred_seq_rel_list,context_list) = zip(*data)
+    (obs_seq_list, pred_seq_list, obs_seq_rel_list, pred_seq_rel_list,context_list,timestamp_list) = zip(*data)
 
     _len = [len(seq) for seq in obs_seq_list]
     cum_start_idx = [0] + np.cumsum(_len).tolist()
@@ -235,10 +245,11 @@ def seq_collate(data):
     obs_traj_rel = torch.cat(obs_seq_rel_list, dim=0).permute(2, 0, 1)
     pred_traj_rel = torch.cat(pred_seq_rel_list, dim=0).permute(2, 0, 1)
     context = torch.cat(context_list, dim=0 ).permute(2,0,1)
+    timestamp = torch.cat(timestamp_list, dim=0 ).permute(2,0,1)
     seq_start_end = torch.LongTensor(seq_start_end)
 
     out = [
-        obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, seq_start_end
+        obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, timestamp, seq_start_end
     ]
     return tuple(out)
 

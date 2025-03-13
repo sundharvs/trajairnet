@@ -7,6 +7,7 @@ import datetime
 import pandas as pd
 import numpy as np
 import ast
+from tqdm import tqdm
 
 from utils import get_runway_transform, convert_frame
 from getWindVelocity import wind_params_runway_frame
@@ -65,8 +66,8 @@ class Data:
                 
     def process_data(self):
         ##main loop: Reads each file
-        for i in self.filelist:
-            print(i)
+        for i in tqdm(self.filelist):
+            # print(i)
             with open(i, mode='r') as csv_file:
                 csv_reader = csv.DictReader(csv_file)
                 for row in csv_reader:
@@ -109,7 +110,8 @@ class Data:
 #                 df_sorted.insert(6, "Crosswind", crosswind)
                 
                 # Save the timestamp before dropping the utc column
-                df_sorted['Timestamp'] = df_sorted["utc"].dt.strftime('%Y-%m-%d %H:%M:%S')
+                # df_sorted['Timestamp'] = df_sorted["utc"].dt.strftime('%Y-%m-%d %H:%M:%S')
+                df_sorted['Timestamp'] = df_sorted["utc"].astype('int64') / 1e9
                 
                 df_sorted = df_sorted.drop(["utc","wind"],axis=1)
 #                 print(df_sorted)
@@ -144,7 +146,7 @@ class Data:
     def seg_and_save(self,df):
         ## segregates the data into scenes and saves
         filename = self.base_path + "/processed_data/" + str(self.out) + ".txt" 
-        print("Filename = ",filename)
+        # print("Filename = ",filename)
         file = open(filename,'w')
         csv_writer = csv.DictWriter(file, fieldnames=["Frame","ID","x","y","z","Headwind","Crosswind","Timestamp"],delimiter = " ")
         first_time = int(df.iloc[0]["Frame"])
@@ -157,7 +159,7 @@ class Data:
                 file.close()
                 self.out = self.out + 1
                 filename = self.base_path + "/processed_data/" + str(self.out) + ".txt"
-                print(filename)
+                # print(filename)
                 file = open(filename,'w')
                 csv_writer = csv.DictWriter(file,fieldnames=["Frame","ID","x","y","z","Headwind","Crosswind","Timestamp"],delimiter = " ")
             first_time = last_time
