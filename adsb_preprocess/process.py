@@ -77,6 +77,7 @@ class Data:
                             Range = row["Range"]
                             Bearing = row["Bearing"]
                             Altitude = row["Altitude"]
+                            Tail = row["Tail"]
                             k = Range + Bearing + ID
                             if k not in self.data and int(Altitude)<6000 and float(Range)<5:
                                 frame_time = self.parse_date_time(row["Date"], row["Time"])
@@ -88,6 +89,7 @@ class Data:
                                 self.data[k]["Range"] = Range
                                 self.data[k]["Bearing"] = Bearing
                                 self.data[k]["Altitude"] = Altitude
+                                self.data[k]["Tail"] = Tail
                 except csv.Error as e:
                     print('file %s, line %d: %s' % (csv_file, csv_reader.line_num, e))
                             
@@ -118,7 +120,7 @@ class Data:
                 
                 df_sorted = df_sorted.drop(["utc","wind"],axis=1)
 #                 print(df_sorted)
-                    
+                
                 self.seg_and_save(df_sorted)                
                 self.data = defaultdict(lambda: defaultdict())
                             
@@ -151,7 +153,7 @@ class Data:
         filename = self.base_path + "/processed_data/" + str(self.out) + ".txt" 
         # print("Filename = ",filename)
         file = open(filename,'w')
-        csv_writer = csv.DictWriter(file, fieldnames=["Frame","ID","x","y","z","Headwind","Crosswind","Timestamp"],delimiter = " ")
+        csv_writer = csv.DictWriter(file, fieldnames=["Frame","ID","x","y","z","Headwind","Crosswind","Timestamp","Tail"],delimiter = " ")
         first_time = int(df.iloc[0]["Frame"])
         for index , row in df.iterrows():
             last_time = int(row["Frame"])
@@ -164,7 +166,7 @@ class Data:
                 filename = self.base_path + "/processed_data/" + str(self.out) + ".txt"
                 # print(filename)
                 file = open(filename,'w')
-                csv_writer = csv.DictWriter(file,fieldnames=["Frame","ID","x","y","z","Headwind","Crosswind","Timestamp"],delimiter = " ")
+                csv_writer = csv.DictWriter(file,fieldnames=["Frame","ID","x","y","z","Headwind","Crosswind","Timestamp","Tail"],delimiter = " ")
             first_time = last_time
         self.out = self.out + 1    
         file.close()
@@ -176,7 +178,22 @@ class Data:
         df['datetime'] = pd.to_datetime(df['datetime'],format="%m/%d/%Y,%H:%M:%S")
         df.index = df['datetime']
         del df['datetime']
-        df_interpol = df.groupby('ID').resample('S').mean()
+        
+        # Separate the numeric and non-numeric columns
+        numeric_cols = df.select_dtypes(include=['number']).columns
+        non_numeric_cols = ['Tail']
+
+        # Resample and apply mean to numeric columns
+        df_numeric = df.groupby('ID').resample('S')[numeric_cols].mean()
+
+        # For non-numeric columns, use an aggregation function, like 'first' or 'last'
+        # Here, we use 'first' to keep the first value of the string column after resampling
+        df_non_numeric = df.groupby('ID').resample('S')[non_numeric_cols].first().ffill()
+
+        # Combine the numeric and non-numeric DataFrames back together
+        df_interpol = pd.concat([df_numeric, df_non_numeric], axis=1)
+        
+        # df_interpol = df.groupby('ID').resample('S').mean()
         df_interpol['x'] = df_interpol['x'].interpolate(limit=60)
         df_interpol['y'] = df_interpol['y'].interpolate(limit=60)
         df_interpol['z'] = df_interpol['z'].interpolate(limit=60)
@@ -202,6 +219,7 @@ class Data:
         data['x'] = df.apply(lambda l: l.x[0],axis =1)
         data['y'] = df.apply(lambda l: l.y[0],axis =1)
         data['ID'] = df["ID"]
+        data['Tail'] = df["Tail"]
         
         return data
 
