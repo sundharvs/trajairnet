@@ -70,24 +70,27 @@ class Data:
             # print(i)
             with open(i, mode='r') as csv_file:
                 csv_reader = csv.DictReader(csv_file)
-                for row in csv_reader:
-                    if row["ID"] is not "" and  row["Range"] is not None and row["Bearing"] is not None :
-                        ID = row["ID"]
-                        Range = row["Range"]
-                        Bearing = row["Bearing"]
-                        Altitude = row["Altitude"]
-                        k = Range + Bearing + ID
-                        if k not in self.data and int(Altitude)<6000 and float(Range)<5:
-                            frame_time = self.parse_date_time(row["Date"], row["Time"])
-                            if frame_time is None:
-                                continue
+                try:
+                    for row in csv_reader:
+                        if row["ID"] is not "" and  row["Range"] is not None and row["Bearing"] is not None :
+                            ID = row["ID"]
+                            Range = row["Range"]
+                            Bearing = row["Bearing"]
+                            Altitude = row["Altitude"]
+                            k = Range + Bearing + ID
+                            if k not in self.data and int(Altitude)<6000 and float(Range)<5:
+                                frame_time = self.parse_date_time(row["Date"], row["Time"])
+                                if frame_time is None:
+                                    continue
+                                
+                                self.data[k]["Frame"] = frame_time
+                                self.data[k]["ID"] = ID
+                                self.data[k]["Range"] = Range
+                                self.data[k]["Bearing"] = Bearing
+                                self.data[k]["Altitude"] = Altitude
+                except csv.Error as e:
+                    print('file %s, line %d: %s' % (csv_file, csv_reader.line_num, e))
                             
-                            self.data[k]["Frame"] = frame_time
-                            self.data[k]["ID"] = ID
-                            self.data[k]["Range"] = Range
-                            self.data[k]["Bearing"] = Bearing
-                            self.data[k]["Altitude"] = Altitude
-                           
                 if not self.data:
                     print("Empty Dict")
                     continue
