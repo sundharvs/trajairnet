@@ -57,7 +57,7 @@ class Data:
             
             # Format as a standard datetime string
             formatted_datetime = f"{month}/{day}/{year} {hour}:{minute}:{seconds}.{microseconds}"
-            return datetime.datetime.strptime(formatted_datetime, '%m/%d/%Y %H:%M:%S.%f')
+            return datetime.datetime.strptime(formatted_datetime, '%m/%d/%Y %H:%M:%S.%f').replace(tzinfo=datetime.timezone.utc)
         except Exception as e:
             print(f"Error parsing date/time: {e}")
             print(f"Date string: {date_str}")
@@ -89,7 +89,10 @@ class Data:
                                 self.data[k]["Range"] = Range
                                 self.data[k]["Bearing"] = Bearing
                                 self.data[k]["Altitude"] = Altitude
-                                self.data[k]["Tail"] = Tail
+                                try:
+                                    self.data[k]["Tail"] = int(Tail, 36) # base36 encode tail number
+                                except:
+                                    self.data[k]["Tail"] = 66728889815 # 'UNKNOWN' tail number
                 except csv.Error as e:
                     print('file %s, line %d: %s' % (csv_file, csv_reader.line_num, e))
                             
@@ -128,7 +131,7 @@ class Data:
 #         print(utc)
         curr_utc = str(utc)
         utc_formatted = curr_utc[0:10] + "-" + curr_utc[11:-3]
-        utc_time = datetime.datetime.strptime(utc_formatted, "%Y-%m-%d-%H:%M")
+        utc_time = datetime.datetime.strptime(utc_formatted, "%Y-%m-%d-%H:%M").replace(tzinfo=datetime.timezone.utc)
         
         result_index = self.weather['datetime'].sub(utc_time).abs().idxmin()
 #         print(self.weather["sknt"].iloc[result_index])
@@ -179,17 +182,16 @@ class Data:
         df.index = df['datetime']
         del df['datetime']
         
-        # Separate the numeric and non-numeric columns
-        numeric_cols = df.select_dtypes(include=['number']).columns
-        non_numeric_cols = ['Tail']
+        # Separate the position and tail number columns
+        position_cols = ['z', 'x', 'y']
+        tail_col = ['Tail']
 
-        # Resample and apply mean to numeric columns
-        df_numeric = df.groupby('ID').resample('S')[numeric_cols].mean()
+        # Resample and apply mean to position columns
+        df_numeric = df.groupby('ID').resample('S')[position_cols].mean()
 
-        # For non-numeric columns, use an aggregation function, like 'first' or 'last'
-        # Here, we use 'first' to keep the first value of the string column after resampling
-        df_non_numeric = df.groupby('ID').resample('S')[non_numeric_cols].first().ffill()
-
+        # For the tail number column, take the first value in each time window, and forward fill any NaNs
+        df_non_numeric = df.groupby('ID').resample('S')[tail_col].first().ffill()
+        
         # Combine the numeric and non-numeric DataFrames back together
         df_interpol = pd.concat([df_numeric, df_non_numeric], axis=1)
         
