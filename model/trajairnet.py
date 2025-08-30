@@ -42,7 +42,8 @@ class TrajAirNet(nn.Module):
         self.tcn_encoder_y = TemporalConvNet(input_size, num_channels, kernel_size=tcn_kernel_size, dropout=dropout)
         self.intent_embedding = nn.Embedding(num_intent_classes, intent_embed_dim)  # Intent embedding layer
         self.cvae = CVAE(encoder_layer_sizes = cvae_encoder,latent_size = args.cvae_hidden, decoder_layer_sizes =cvae_decoder,conditional=True, num_labels= gat_out+gat_in)
-        self.gat = GAT( nin=gat_in, nhid = graph_hidden, nout = gat_out, alpha = alpha, nheads = n_heads)
+        self.gat = GAT( nin=gat_in, nhid = graph_hidden, nout = gat_out, alpha = alpha, nheads = n_heads, 
+                       intent_embed_dim=intent_embed_dim, intent_head_ratio=0.25)
         self.linear_decoder = nn.Linear(args.mlp_layer,n_classes)
         self.context_conv = nn.Conv1d(in_channels=args.num_context_input_c, out_channels=1, kernel_size=args.cnn_kernels)
         self.context_linear = nn.Linear(args.obs-1,args.num_context_output_c)
@@ -93,7 +94,7 @@ class TrajAirNet(nn.Module):
         if len(gat_input.shape) == 1:
             gat_input = torch.unsqueeze(gat_input,dim=0)
 
-        gat_output = self.gat(gat_input,adj)
+        gat_output = self.gat(gat_input, adj, intent_embeds)
 
         recon_y = []
         m = []
@@ -152,7 +153,7 @@ class TrajAirNet(nn.Module):
         if len(gat_input.shape) == 1:
             gat_input = torch.unsqueeze(gat_input,dim=0)
         
-        gat_output = self.gat(gat_input,adj)
+        gat_output = self.gat(gat_input, adj, intent_embeds)
         
         recon_y = []
         m = []
