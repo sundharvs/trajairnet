@@ -20,9 +20,13 @@ class TrajAirNet(nn.Module):
         tcn_kernel_size = args.tcn_kernels
         dropout = args.dropout
         
+        # Intent embedding parameters
+        intent_embed_dim = getattr(args, 'intent_embed_dim', 32)  # Default 32 if not specified
+        num_intent_classes = getattr(args, 'num_intent_classes', 16)  # Default 16 classes
+        
         graph_hidden = args.graph_hidden
-        gat_in = n_classes*args.obs+args.num_context_output_c
-        gat_out = n_classes*args.obs+args.num_context_output_c
+        gat_in = n_classes*args.obs+args.num_context_output_c+intent_embed_dim  # Add intent embedding dim
+        gat_out = n_classes*args.obs+args.num_context_output_c+intent_embed_dim
         n_heads = args.gat_heads 
         alpha = args.alpha
         
@@ -36,6 +40,7 @@ class TrajAirNet(nn.Module):
 
         self.tcn_encoder_x = TemporalConvNet(input_size, num_channels, kernel_size=tcn_kernel_size, dropout=dropout)
         self.tcn_encoder_y = TemporalConvNet(input_size, num_channels, kernel_size=tcn_kernel_size, dropout=dropout)
+        self.intent_embedding = nn.Embedding(num_intent_classes, intent_embed_dim)  # Intent embedding layer
         self.cvae = CVAE(encoder_layer_sizes = cvae_encoder,latent_size = args.cvae_hidden, decoder_layer_sizes =cvae_decoder,conditional=True, num_labels= gat_out+gat_in)
         self.gat = GAT( nin=gat_in, nhid = graph_hidden, nout = gat_out, alpha = alpha, nheads = n_heads)
         self.linear_decoder = nn.Linear(args.mlp_layer,n_classes)
@@ -49,11 +54,14 @@ class TrajAirNet(nn.Module):
         self.context_linear.weight.data.normal_(0, 0.05)
         self.context_conv.weight.data.normal_(0, 0.1)
         
-    def forward(self, x, y, adj,context,sort=False):        
+    def forward(self, x, y, adj, context, intent_labels, sort=False):        
         
         encoded_trajectories_x = []
         encoded_appended_trajectories_x = []
         encoded_trajectories_y = []
+        
+        # Embed intent labels for all agents
+        intent_embeds = self.intent_embedding(intent_labels)  # [num_agents, intent_embed_dim]
         
         # pass all agents through encoder
 
@@ -68,7 +76,10 @@ class TrajAirNet(nn.Module):
             encoded_context = self.context_conv(c1)
             encoded_context = self.relu(self.context_linear(encoded_context))
             
-            appended_x = torch.cat((encoded_x,encoded_context),dim=2)
+            # Add intent embedding for this agent
+            intent_embed = intent_embeds[agent].unsqueeze(0).unsqueeze(0)  # [1, 1, intent_embed_dim]
+            
+            appended_x = torch.cat((encoded_x, encoded_context, intent_embed), dim=2)
             encoded_appended_trajectories_x.append(appended_x)
             
             y1 = torch.transpose(y[:,:, agent][None, :, :], 1, 2)
@@ -110,11 +121,14 @@ class TrajAirNet(nn.Module):
         return recon_y,m,var
     
     
-    def inference(self,x,z,adj,context):
+    def inference(self,x,z,adj,context,intent_labels):
      
 
         encoded_trajectories_x = []
         encoded_appended_trajectories_x = []
+        
+        # Embed intent labels for all agents
+        intent_embeds = self.intent_embedding(intent_labels)  # [num_agents, intent_embed_dim]
         
         # pass all agents through encoder
         for agent in range(x.shape[2]):
@@ -126,7 +140,10 @@ class TrajAirNet(nn.Module):
             encoded_x = self.tcn_encoder_x(x1)
             encoded_x = torch.flatten(encoded_x)[None,None,:]
             encoded_trajectories_x.append(encoded_x)
-            appended_x = torch.cat((encoded_x,encoded_context),dim=2)
+            
+            # Add intent embedding for this agent
+            intent_embed = intent_embeds[agent].unsqueeze(0).unsqueeze(0)  # [1, 1, intent_embed_dim]
+            appended_x = torch.cat((encoded_x, encoded_context, intent_embed), dim=2)
 
             encoded_appended_trajectories_x.append(appended_x)
 

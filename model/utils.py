@@ -9,6 +9,107 @@ from torch.utils.data import Dataset
 import numpy as np
 from scipy.spatial import distance_matrix
 import random
+import pandas as pd
+from datetime import datetime
+
+
+##Intent Lookup class
+
+class IntentLookup:
+    """
+    Class to lookup intent labels for aircraft based on their most recent radio call.
+    Loads intent-labeled radio calls from main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv
+    """
+    
+    def __init__(self, intent_csv_path=None):
+        """
+        Initialize IntentLookup with radio call data.
+        
+        Args:
+            intent_csv_path (str): Path to transcripts_with_goals.csv file
+        """
+        if intent_csv_path is None:
+            # Default path relative to trajairnet directory
+            intent_csv_path = "/home/ssangeetha3/git/ctaf-intent-inference/main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv"
+        
+        self.intent_data = {}  # {tail_number: [(timestamp, intent_category), ...]}
+        self._load_intent_data(intent_csv_path)
+    
+    def _load_intent_data(self, csv_path):
+        """Load and process radio call intent data."""
+        try:
+            df = pd.read_csv(csv_path)
+            print(f"Loaded {len(df)} radio call records for intent lookup")
+            
+            for _, row in df.iterrows():
+                tail = row['speaker_tail']
+                if tail == 'Unknown' or pd.isna(tail):
+                    continue
+                    
+                # Parse timestamp
+                try:
+                    timestamp_str = row['start_time']
+                    timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00')).timestamp()
+                except:
+                    # Try parsing without timezone info
+                    timestamp = datetime.fromisoformat(timestamp_str.split('.')[0]).timestamp()
+                
+                intent_category = int(row['Goal Category']) if not pd.isna(row['Goal Category']) else 15
+                
+                if tail not in self.intent_data:
+                    self.intent_data[tail] = []
+                self.intent_data[tail].append((timestamp, intent_category))
+            
+            # Sort each aircraft's radio calls by timestamp
+            for tail in self.intent_data:
+                self.intent_data[tail].sort(key=lambda x: x[0])
+                
+            print(f"Processed intent data for {len(self.intent_data)} unique aircraft")
+            
+        except Exception as e:
+            print(f"Error loading intent data from {csv_path}: {e}")
+            print("Will default to intent category 15 (Insufficient information) for all aircraft")
+    
+    def _convert_tail_to_string(self, tail_numeric):
+        """Convert base-36 numeric tail to string format."""
+        try:
+            if tail_numeric == 66728889815:  # Special case for 'UNKNOWN'
+                return 'Unknown'
+            return np.base_repr(int(tail_numeric), 36)
+        except:
+            return 'Unknown'
+    
+    def get_most_recent_intent(self, tail_number, sequence_end_timestamp):
+        """
+        Get the most recent intent category for an aircraft before a given timestamp.
+        
+        Args:
+            tail_number (float or str): Aircraft tail number (numeric base-36 or string)
+            sequence_end_timestamp (float): Unix timestamp of sequence end
+            
+        Returns:
+            int: Intent category (1-16), defaults to 15 if no radio call found
+        """
+        # Convert numeric tail to string format
+        if isinstance(tail_number, (int, float)):
+            tail_str = self._convert_tail_to_string(tail_number)
+        else:
+            tail_str = tail_number
+        
+        if tail_str not in self.intent_data:
+            return 15  # Default: "Insufficient information"
+        
+        # Find most recent radio call before sequence end
+        radio_calls = self.intent_data[tail_str]
+        most_recent_intent = 15  # Default
+        
+        for timestamp, intent in radio_calls:
+            if timestamp <= sequence_end_timestamp:
+                most_recent_intent = intent
+            else:
+                break  # Radio calls are sorted by timestamp
+        
+        return most_recent_intent
 
 
 ##Dataloader class
@@ -19,7 +120,7 @@ class TrajectoryDataset(Dataset):
     
     def __init__(
         self, data_dir, obs_len=11, pred_len=120, skip=1,step=10,
-        min_agent=0, delim=' '):
+        min_agent=0, delim=' ', intent_csv_path=None):
         """
         Args:
         - data_dir: Directory containing dataset files in the format
@@ -30,8 +131,12 @@ class TrajectoryDataset(Dataset):
         - min_agent: Minimum number of agents that should be in a seqeunce
         - step: Subsampling for pred
         - delim: Delimiter in the dataset files
+        - intent_csv_path: Path to transcripts_with_goals.csv for intent lookup
         """
         super(TrajectoryDataset, self).__init__()
+        
+        # Initialize intent lookup
+        self.intent_lookup = IntentLookup(intent_csv_path)
 
         self.max_agents_in_frame = 0
         self.data_dir = data_dir
@@ -51,6 +156,7 @@ class TrajectoryDataset(Dataset):
         context_list = []
         timestamp_list = []
         tail_list = []
+        intent_list = []  # New list to store intent labels
         
         self.seq_file_map = []  # New list to store file indices
         
@@ -79,6 +185,7 @@ class TrajectoryDataset(Dataset):
                 curr_context =  np.zeros((len(agents_in_curr_seq), 2,self.seq_final_len ))
                 curr_timestamp = np.zeros((len(agents_in_curr_seq), 1, self.seq_final_len))
                 curr_tail = np.zeros((len(agents_in_curr_seq), 1, self.seq_final_len))
+                curr_intent = np.full((len(agents_in_curr_seq),), 15)  # Default to "Insufficient information"
                 num_agents_considered = 0
                 for _, agent_id in enumerate(agents_in_curr_seq):
                     curr_agent_seq = curr_seq_data[curr_seq_data[:, 1] ==
@@ -96,6 +203,11 @@ class TrajectoryDataset(Dataset):
                     timestamp = curr_agent_seq[5,:]
                     tail = curr_agent_seq[6,:]
                     
+                    # Get intent label for this agent at sequence end timestamp
+                    sequence_end_timestamp = timestamp[-1]  # Last timestamp in sequence
+                    agent_tail_number = tail[0]  # Tail number (same for entire sequence)
+                    intent_label = self.intent_lookup.get_most_recent_intent(agent_tail_number, sequence_end_timestamp)
+                    
                     # Make coordinates relative
                     rel_curr_agent_seq = np.zeros(curr_agent_seq.shape)
                     rel_curr_agent_seq[:, 1:] = \
@@ -112,6 +224,7 @@ class TrajectoryDataset(Dataset):
                     curr_context[_idx,:,pad_front:pad_end] = context
                     curr_timestamp[_idx,:,pad_front:pad_end] = timestamp
                     curr_tail[_idx,:,pad_front:pad_end] = tail
+                    curr_intent[_idx] = intent_label  # Store intent label for this agent
                     num_agents_considered += 1
             
 
@@ -122,6 +235,7 @@ class TrajectoryDataset(Dataset):
                     context_list.append(curr_context[:num_agents_considered])
                     timestamp_list.append(curr_timestamp[:num_agents_considered])
                     tail_list.append(curr_tail[:num_agents_considered])
+                    intent_list.append(curr_intent[:num_agents_considered])
                     self.seq_file_map.append(path_idx)
 
         self.num_seq = len(seq_list)
@@ -130,6 +244,7 @@ class TrajectoryDataset(Dataset):
         context_list = np.concatenate(context_list, axis=0)
         timestamp_list = np.concatenate(timestamp_list, axis=0)
         tail_list = np.concatenate(tail_list, axis=0)
+        intent_list = np.concatenate(intent_list, axis=0)
 
         # Convert numpy -> Torch Tensor
         self.obs_traj = torch.from_numpy(
@@ -140,6 +255,8 @@ class TrajectoryDataset(Dataset):
             timestamp_list[:,:,:self.obs_len]).type(torch.double)
         self.obs_tail = torch.from_numpy(
             tail_list[:,:,:self.obs_len]).type(torch.double)
+        self.intent_labels = torch.from_numpy(
+            intent_list).type(torch.long)  # Intent labels as long integers
         self.pred_traj = torch.from_numpy(
             seq_list[:, :, self.obs_len:]).type(torch.float)
         self.obs_traj_rel = torch.from_numpy(
@@ -168,6 +285,7 @@ class TrajectoryDataset(Dataset):
         out = [
             self.obs_traj[start:end, :], self.pred_traj[start:end, :],
             self.obs_traj_rel[start:end, :], self.pred_traj_rel[start:end, :], self.obs_context[start:end, :],
+            self.intent_labels[start:end],  # Add intent labels
             self.obs_timestamp[start:end, :],
             self.obs_tail[start:end, :]
         ]
@@ -240,7 +358,7 @@ def acc_to_abs(acc,obs,delta=1):
     
 
 def seq_collate(data):
-    (obs_seq_list, pred_seq_list, obs_seq_rel_list, pred_seq_rel_list,context_list,timestamp_list,tail_list) = zip(*data)
+    (obs_seq_list, pred_seq_list, obs_seq_rel_list, pred_seq_rel_list,context_list,intent_list,timestamp_list,tail_list) = zip(*data)
 
     _len = [len(seq) for seq in obs_seq_list]
     cum_start_idx = [0] + np.cumsum(_len).tolist()
@@ -254,12 +372,13 @@ def seq_collate(data):
     obs_traj_rel = torch.cat(obs_seq_rel_list, dim=0).permute(2, 0, 1)
     pred_traj_rel = torch.cat(pred_seq_rel_list, dim=0).permute(2, 0, 1)
     context = torch.cat(context_list, dim=0 ).permute(2,0,1)
+    intent_labels = torch.cat(intent_list, dim=0)  # Intent labels: [total_agents]
     timestamp = torch.cat(timestamp_list, dim=0 ).permute(2,0,1)
     tail = torch.cat(tail_list, dim=0 ).permute(2,0,1)
     seq_start_end = torch.LongTensor(seq_start_end)
 
     out = [
-        obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, timestamp, tail, seq_start_end
+        obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, intent_labels, seq_start_end
     ]
     return tuple(out)
 

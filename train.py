@@ -42,6 +42,10 @@ def train():
     parser.add_argument('--cvae_layers',type=int,default=2)
     parser.add_argument('--mlp_layer',type=int,default=32)
 
+    ##Intent embedding params
+    parser.add_argument('--intent_embed_dim',type=int,default=32)
+    parser.add_argument('--num_intent_classes',type=int,default=16)
+
     parser.add_argument('--lr',type=float,default=0.001)
 
 
@@ -95,13 +99,13 @@ def train():
             batch_count += 1
             tot_batch_count += 1
             batch = [tensor.to(device) for tensor in batch]
-            obs_traj , pred_traj, obs_traj_rel, pred_traj_rel, context, seq_start = batch 
+            obs_traj , pred_traj, obs_traj_rel, pred_traj_rel, context, intent_labels, seq_start = batch 
             num_agents = obs_traj.shape[1]
             pred_traj = torch.transpose(pred_traj,1,2)
             adj = torch.ones((num_agents,num_agents))
 
             optimizer.zero_grad()
-            recon_y,m,var = model(torch.transpose(obs_traj,1,2),pred_traj, adj[0],torch.transpose(context,1,2))
+            recon_y,m,var = model(torch.transpose(obs_traj,1,2),pred_traj, adj[0],torch.transpose(context,1,2),intent_labels)
             loss = 0
             
             for agent in range(num_agents):
