@@ -72,16 +72,18 @@ def test_intent_interaction_matrix():
         
         model = TrajAirNet(args)
         
-        # Test model forward pass
+        # Test model forward pass with correct dimensions
         batch_size = 1
         num_agents = 2
         obs_len = 11
         pred_len = 12
         
-        obs_traj = torch.randn(obs_len, num_agents, 3)
-        pred_traj = torch.randn(pred_len, num_agents, 3)
-        context = torch.randn(obs_len, num_agents, 2)
-        intent_labels = torch.tensor([3, 8])  # Sample intent labels
+        # Create tensors in the format expected by model after collation and transpose
+        # Model expects: obs_traj -> [seq_len, features, agents], context -> [seq_len, features, agents]
+        obs_traj = torch.randn(obs_len, 3, num_agents)  # [seq_len, features, agents]
+        pred_traj = torch.randn(pred_len, 3, num_agents)  # [pred_len, features, agents]
+        context = torch.randn(obs_len, 2, num_agents)   # [seq_len, features, agents]  
+        intent_labels = torch.tensor([3, 8])  # Sample intent labels [num_agents]
         adj = torch.ones(num_agents, num_agents)
         
         recon_y, m, var = model(obs_traj, pred_traj, adj, context, intent_labels)
