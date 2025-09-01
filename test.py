@@ -53,7 +53,7 @@ def main():
 
     ##Load data
 
-    datapath = os.getcwd() + args.dataset_folder + args.dataset_name + "/processed_data/"
+    datapath = args.dataset_folder + args.dataset_name + "/processed_data/"
 
     print("Loading Test Data from ",datapath + "test")
     dataset_test = TrajectoryDataset(datapath + "test", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim, skip=args.skip)
@@ -84,7 +84,7 @@ def test(model,loader_test,device):
         tot_batch += 1
         batch = [tensor.to(device) for tensor in batch]
 
-        obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, timestamp, tail, seq_start = batch 
+        obs_traj_all, pred_traj_all, obs_traj_rel, pred_traj_rel, context, timestamp, tail, seq_start = batch 
         num_agents = obs_traj_all.shape[1]
         
         best_ade_loss = float('inf')
