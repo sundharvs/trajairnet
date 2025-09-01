@@ -64,7 +64,7 @@ def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     ##Load test and train data
-    datapath = os.getcwd() + args.dataset_folder + args.dataset_name + "/processed_data/"
+    datapath = args.dataset_folder + args.dataset_name + "/processed_data/"
 
     print("Loading Train Data from ",datapath + "train")
     dataset_train = TrajectoryDataset(datapath + "train", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim)
