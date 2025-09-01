@@ -84,7 +84,7 @@ def test(model,loader_test,device):
         tot_batch += 1
         batch = [tensor.to(device) for tensor in batch]
 
-        obs_traj_all , pred_traj_all, obs_traj_rel_all, pred_traj_rel_all, context, seq_start  = batch
+        obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, timestamp, tail, seq_start = batch 
         num_agents = obs_traj_all.shape[1]
         
         best_ade_loss = float('inf')
