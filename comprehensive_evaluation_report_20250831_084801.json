@@ -1,0 +1,119 @@
+{
+  "timestamp": "20250831_084801",
+  "evaluation_summary": {
+    "total_methods": 4,
+    "successful_evaluations": 4,
+    "failed_evaluations": 0
+  },
+  "results": {
+    "Baseline (No Intent)": {
+      "method": "Baseline (No Intent)",
+      "branch": "main",
+      "avg_ade": 0.2512037456035614,
+      "avg_fde": 0.07034990191459656,
+      "total_agents": 100,
+      "total_sequences": 50,
+      "eval_time_seconds": 0.26165318489074707,
+      "batches_evaluated": 50,
+      "timestamp": "2025-08-31T08:44:47.157218",
+      "model_params": {
+        "tcn_channel_size": 128,
+        "gat_heads": 8,
+        "graph_hidden": 128,
+        "cvae_hidden": 64
+      }
+    },
+    "Option 1: Intent Interaction Matrix": {
+      "method": "Option 1: Intent Interaction Matrix",
+      "branch": "intent-interaction-matrix",
+      "avg_ade": 0.28199684619903564,
+      "avg_fde": 0.3062534034252167,
+      "total_agents": 50,
+      "total_sequences": 50,
+      "eval_time_seconds": 0.2869873046875,
+      "batches_evaluated": 50,
+      "timestamp": "2025-08-31T08:45:47.146108",
+      "model_params": {
+        "tcn_channel_size": 256,
+        "gat_heads": 16,
+        "graph_hidden": 256,
+        "cvae_hidden": 128,
+        "intent_embed_dim": 32,
+        "num_intent_classes": 16
+      }
+    },
+    "Option 2: Intent Attention Head": {
+      "method": "Option 2: Intent Attention Head",
+      "branch": "intent-attention-head",
+      "avg_ade": 0.4031064212322235,
+      "avg_fde": 0.4665025472640991,
+      "total_agents": 50,
+      "total_sequences": 50,
+      "eval_time_seconds": 0.28456950187683105,
+      "batches_evaluated": 50,
+      "timestamp": "2025-08-31T08:46:02.522061",
+      "model_params": {
+        "tcn_channel_size": 256,
+        "gat_heads": 16,
+        "graph_hidden": 256,
+        "cvae_hidden": 128,
+        "intent_embed_dim": 32,
+        "num_intent_classes": 16
+      }
+    },
+    "Option 3: Multi-Head Intent": {
+      "method": "Option 3: Multi-Head Intent",
+      "branch": "multi-head-intent",
+      "avg_ade": 0.10606233775615692,
+      "avg_fde": 0.0793367251753807,
+      "total_agents": 50,
+      "total_sequences": 50,
+      "eval_time_seconds": 0.27721381187438965,
+      "batches_evaluated": 50,
+      "timestamp": "2025-08-31T08:46:17.608999",
+      "model_params": {
+        "tcn_channel_size": 256,
+        "gat_heads": 16,
+        "graph_hidden": 256,
+        "cvae_hidden": 128,
+        "intent_embed_dim": 32,
+        "num_intent_classes": 16
+      }
+    }
+  },
+  "comparison": [
+    {
+      "method": "Option 3: Multi-Head Intent",
+      "ade": 0.10606233775615692,
+      "fde": 0.0793367251753807,
+      "agents": 50,
+      "time": 0.27721381187438965,
+      "status": "RANDOM INIT"
+    },
+    {
+      "method": "Baseline (No Intent)",
+      "ade": 0.2512037456035614,
+      "fde": 0.07034990191459656,
+      "agents": 100,
+      "time": 0.26165318489074707,
+      "status": "RANDOM INIT"
+    },
+    {
+      "method": "Option 1: Intent Interaction Matrix",
+      "ade": 0.28199684619903564,
+      "fde": 0.3062534034252167,
+      "agents": 50,
+      "time": 0.2869873046875,
+      "status": "RANDOM INIT"
+    },
+    {
+      "method": "Option 2: Intent Attention Head",
+      "ade": 0.4031064212322235,
+      "fde": 0.4665025472640991,
+      "agents": 50,
+      "time": 0.28456950187683105,
+      "status": "RANDOM INIT"
+    }
+  ],
+  "note": "All evaluations performed with random initialization for architectural comparison"
+}

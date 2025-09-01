@@ -1,0 +1,19 @@
+{
+  "method": "Option 3: Multi-Head Intent",
+  "branch": "multi-head-intent",
+  "avg_ade": 0.10606233775615692,
+  "avg_fde": 0.0793367251753807,
+  "total_agents": 50,
+  "total_sequences": 50,
+  "eval_time_seconds": 0.27721381187438965,
+  "batches_evaluated": 50,
+  "timestamp": "2025-08-31T08:46:17.608999",
+  "model_params": {
+    "tcn_channel_size": 256,
+    "gat_heads": 16,
+    "graph_hidden": 256,
+    "cvae_hidden": 128,
+    "intent_embed_dim": 32,
+    "num_intent_classes": 16
+  }
+}

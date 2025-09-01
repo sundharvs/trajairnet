@@ -1,0 +1,17 @@
+{
+  "method": "Baseline (No Intent)",
+  "branch": "main",
+  "avg_ade": 0.2512037456035614,
+  "avg_fde": 0.07034990191459656,
+  "total_agents": 100,
+  "total_sequences": 50,
+  "eval_time_seconds": 0.26165318489074707,
+  "batches_evaluated": 50,
+  "timestamp": "2025-08-31T08:44:47.157218",
+  "model_params": {
+    "tcn_channel_size": 128,
+    "gat_heads": 8,
+    "graph_hidden": 128,
+    "cvae_hidden": 64
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "method": "Option 2: Intent Attention Head",
+  "branch": "intent-attention-head",
+  "avg_ade": 0.4031064212322235,
+  "avg_fde": 0.4665025472640991,
+  "total_agents": 50,
+  "total_sequences": 50,
+  "eval_time_seconds": 0.28456950187683105,
+  "batches_evaluated": 50,
+  "timestamp": "2025-08-31T08:46:02.522061",
+  "model_params": {
+    "tcn_channel_size": 256,
+    "gat_heads": 16,
+    "graph_hidden": 256,
+    "cvae_hidden": 128,
+    "intent_embed_dim": 32,
+    "num_intent_classes": 16
+  }
+}
