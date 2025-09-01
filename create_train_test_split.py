@@ -64,5 +64,5 @@ def create_train_test_split(data_dir, train_ratio=0.8):
     return True
 
 if __name__ == "__main__":
-    data_dir = "/home/ssangeetha3/git/ctaf-intent-inference/dataset/MayJun2022"
+    data_dir = "/home/ssangeetha3/git/ctaf-intent-inference/dataset/7daysJune"
     create_train_test_split(data_dir)
