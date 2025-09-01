@@ -53,7 +53,7 @@ def main():
 
     ##Load data
 
-    datapath = os.getcwd() + args.dataset_folder + args.dataset_name + "/processed_data/"
+    datapath = args.dataset_folder + args.dataset_name + "/processed_data/"
 
     print("Loading Test Data from ",datapath + "test")
     dataset_test = TrajectoryDataset(datapath + "test", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim, skip=args.skip)
@@ -84,8 +84,8 @@ def test(model,loader_test,device):
         tot_batch += 1
         batch = [tensor.to(device) for tensor in batch]
 
-        obs_traj_all , pred_traj_all, obs_traj_rel_all, pred_traj_rel_all, context, seq_start  = batch
-        num_agents = obs_traj_all.shape[1]
+        obs_traj , pred_traj, obs_traj_rel, pred_traj_rel, context, intent_labels, seq_start = batch 
+        num_agents = obs_traj.shape[1]
         
         best_ade_loss = float('inf')
         best_fde_loss = float('inf')
@@ -94,16 +94,16 @@ def test(model,loader_test,device):
             z = torch.randn([1,1 ,128]).to(device)
             
             adj = torch.ones((num_agents,num_agents))
-            recon_y_all = model.inference(torch.transpose(obs_traj_all,1,2),z,adj,torch.transpose(context,1,2))
+            recon_y_all = model.inference(torch.transpose(obs_traj,1,2),z,adj,torch.transpose(context,1,2),intent_labels)
             
             ade_loss = 0
             fde_loss = 0
             for agent in range(num_agents):
-                obs_traj = np.squeeze(obs_traj_all[:,agent,:].cpu().numpy())
-                pred_traj = np.squeeze(pred_traj_all[:,agent,:].cpu().numpy())
+                obs_traj_single = np.squeeze(obs_traj[:,agent,:].cpu().numpy())
+                pred_traj_single = np.squeeze(pred_traj[:,agent,:].cpu().numpy())
                 recon_pred = np.squeeze(recon_y_all[agent].detach().cpu().numpy()).transpose()
-                ade_loss += ade(recon_pred, pred_traj)
-                fde_loss += fde((recon_pred), (pred_traj))
+                ade_loss += ade(recon_pred, pred_traj_single)
+                fde_loss += fde((recon_pred), (pred_traj_single))
            
             
             ade_total_loss = ade_loss/num_agents
