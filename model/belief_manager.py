@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import pandas as pd
 import numpy as np
 
-from belief_states import BeliefState, INTENT_VOCABULARY
+from .belief_states import BeliefState, INTENT_VOCABULARY
 
 
 @dataclass 
@@ -124,12 +124,7 @@ class BeliefManager:
         # Get previous belief state
         previous_belief = self.get_most_recent_belief(tail, radio_call.timestamp)
         
-        # Update belief using LLM (placeholder for now)
-        if llm_belief_updater:
-            new_belief = llm_belief_updater(radio_call, previous_belief)
-        else:
-            # Fallback: create simple belief from transcript keywords
-            new_belief = self._extract_simple_belief(radio_call, previous_belief)
+        new_belief = llm_belief_updater(radio_call, previous_belief)
         
         # Store updated belief
         if tail not in self.aircraft_beliefs:
@@ -179,64 +174,7 @@ class BeliefManager:
             belief = self.get_most_recent_belief(tail, sequence_timestamp)
             beliefs.append(belief)
         return beliefs
-    
-    def _extract_simple_belief(self, radio_call: RadioCall, previous_belief: Optional[BeliefState]) -> BeliefState:
-        """
-        Simple rule-based belief extraction (fallback when LLMs not available).
         
-        Args:
-            radio_call: Radio communication
-            previous_belief: Previous belief state
-            
-        Returns:
-            New belief state based on transcript keywords
-        """
-        transcript = radio_call.transcript.lower()
-        intent_sequence = []
-        
-        # Simple keyword matching for common patterns
-        if 'downwind' in transcript:
-            if '8' in transcript or 'eight' in transcript:
-                intent_sequence.extend(['downwind_8', 'base_8', 'final_8', 'land_8'])
-            elif '26' in transcript or 'twenty-six' in transcript:
-                intent_sequence.extend(['downwind_26', 'base_26', 'final_26', 'land_26'])
-        
-        elif 'base' in transcript:
-            if '8' in transcript:
-                intent_sequence.extend(['base_8', 'final_8', 'land_8'])
-            elif '26' in transcript:
-                intent_sequence.extend(['base_26', 'final_26', 'land_26'])
-        
-        elif 'final' in transcript:
-            if '8' in transcript:
-                intent_sequence.extend(['final_8', 'land_8'])
-            elif '26' in transcript:
-                intent_sequence.extend(['final_26', 'land_26'])
-        
-        elif 'takeoff' in transcript or 'departure' in transcript:
-            if '8' in transcript:
-                intent_sequence.append('takeoff_8')
-            elif '26' in transcript:
-                intent_sequence.append('takeoff_26')
-        
-        elif 'touch and go' in transcript:
-            if '8' in transcript:
-                intent_sequence.extend(['land_8', 'takeoff_8'])
-            elif '26' in transcript:
-                intent_sequence.extend(['land_26', 'takeoff_26'])
-        
-        elif 'going around' in transcript or 'go around' in transcript:
-            intent_sequence.extend(['go_around', 'upwind_8'])  # Assume runway 8 for now
-        
-        # If we couldn't extract anything specific, use unknown
-        if not intent_sequence:
-            intent_sequence = ['unknown']
-        
-        belief = BeliefState(intent_sequence, radio_call.timestamp)
-        belief.add_radio_call(radio_call.transcript)
-        
-        return belief
-    
     def get_statistics(self) -> Dict[str, Any]:
         """Get statistics about the belief tracking system."""
         stats = {
