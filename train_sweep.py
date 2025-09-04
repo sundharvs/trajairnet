@@ -6,63 +6,68 @@ from torch.utils.data import DataLoader
 from torch import optim
 import wandb
 
-
-
 from model.trajairnet import TrajAirNet
 from model.utils import TrajectoryDataset, seq_collate, loss_func
 from test import test
 
+def train_with_config(config=None):
+    """
+    Train function that can be called with a config dictionary for sweeps
+    """
+    if config is None:
+        # Parse arguments from command line
+        parser = argparse.ArgumentParser(description='Train TrajAirNet model')
+        
+        ##Dataset params
+        parser.add_argument('--dataset_folder',type=str,default='/dataset/')
+        parser.add_argument('--dataset_name',type=str,default='7days1')
+        parser.add_argument('--obs',type=int,default=11)
+        parser.add_argument('--preds',type=int,default=120)
+        parser.add_argument('--preds_step',type=int,default=10)
 
+        ##Network params
+        parser.add_argument('--input_channels',type=int,default=3)
+        parser.add_argument('--tcn_channel_size',type=int,default=256)
+        parser.add_argument('--tcn_layers',type=int,default=2)
+        parser.add_argument('--tcn_kernels',type=int,default=4)
 
-def train():
+        parser.add_argument('--num_context_input_c',type=int,default=2)
+        parser.add_argument('--num_context_output_c',type=int,default=7)
+        parser.add_argument('--cnn_kernels',type=int,default=2)
 
-    ##Dataset params
-    parser=argparse.ArgumentParser(description='Train TrajAirNet model')
-    parser.add_argument('--dataset_folder',type=str,default='/dataset/')
-    parser.add_argument('--dataset_name',type=str,default='7days1')
-    parser.add_argument('--obs',type=int,default=11)
-    parser.add_argument('--preds',type=int,default=120)
-    parser.add_argument('--preds_step',type=int,default=10)
+        parser.add_argument('--gat_heads',type=int, default=16)
+        parser.add_argument('--graph_hidden',type=int,default=256)
+        parser.add_argument('--dropout',type=float,default=0.05)
+        parser.add_argument('--alpha',type=float,default=0.2)
+        parser.add_argument('--cvae_hidden',type=int,default=128)
+        parser.add_argument('--cvae_channel_size',type=int,default=128)
+        parser.add_argument('--cvae_layers',type=int,default=2)
+        parser.add_argument('--mlp_layer',type=int,default=32)
 
-    ##Network params
-    parser.add_argument('--input_channels',type=int,default=3)
-    parser.add_argument('--tcn_channel_size',type=int,default=256)
-    parser.add_argument('--tcn_layers',type=int,default=2)
-    parser.add_argument('--tcn_kernels',type=int,default=4)
+        ##Intent embedding params
+        parser.add_argument('--intent_embed_dim',type=int,default=32)
+        parser.add_argument('--num_intent_classes',type=int,default=16)
 
-    parser.add_argument('--num_context_input_c',type=int,default=2)
-    parser.add_argument('--num_context_output_c',type=int,default=7)
-    parser.add_argument('--cnn_kernels',type=int,default=2)
+        parser.add_argument('--lr',type=float,default=0.001)
 
-    parser.add_argument('--gat_heads',type=int, default=16)
-    parser.add_argument('--graph_hidden',type=int,default=256)
-    parser.add_argument('--dropout',type=float,default=0.05)
-    parser.add_argument('--alpha',type=float,default=0.2)
-    parser.add_argument('--cvae_hidden',type=int,default=128)
-    parser.add_argument('--cvae_channel_size',type=int,default=128)
-    parser.add_argument('--cvae_layers',type=int,default=2)
-    parser.add_argument('--mlp_layer',type=int,default=32)
+        parser.add_argument('--total_epochs',type=int, default=50)
+        parser.add_argument('--delim',type=str,default=' ')
+        parser.add_argument('--evaluate', type=bool, default=True)
+        parser.add_argument('--save_model', type=bool, default=True)
 
-    ##Intent embedding params
-    parser.add_argument('--intent_embed_dim',type=int,default=32)
-    parser.add_argument('--num_intent_classes',type=int,default=16)
+        parser.add_argument('--model_pth', type=str , default="/saved_models/")
+        
+        ##Wandb params
+        parser.add_argument('--use_wandb', type=bool, default=True)
+        parser.add_argument('--wandb_project', type=str, default="trajairnet-intent-interaction-matrix")
+        parser.add_argument('--wandb_entity', type=str, default=None)
 
-    parser.add_argument('--lr',type=float,default=0.001)
-
-
-    parser.add_argument('--total_epochs',type=int, default=50)
-    parser.add_argument('--delim',type=str,default=' ')
-    parser.add_argument('--evaluate', type=bool, default=True)
-    parser.add_argument('--save_model', type=bool, default=True)
-
-    parser.add_argument('--model_pth', type=str , default="/saved_models/")
-    
-    ##Wandb params
-    parser.add_argument('--use_wandb', type=bool, default=True)
-    parser.add_argument('--wandb_project', type=str, default="trajairnet-intent-interaction-matrix")
-    parser.add_argument('--wandb_entity', type=str, default=None)
-
-    args=parser.parse_args()
+        args = parser.parse_args()
+    else:
+        # Use provided config
+        args = argparse.Namespace()
+        for key, value in config.items():
+            setattr(args, key, value)
 
     ##Initialize wandb
     if args.use_wandb:
@@ -73,7 +78,6 @@ def train():
         )
 
     ##Select device
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     ##Load test and train data
@@ -90,10 +94,6 @@ def train():
 
     model = TrajAirNet(args)
     model.to(device)
-
-    ##Resume
-    # checkpoint = torch.load('model_11.pt',map_location=torch.device('cpu'))
-    # model.load_state_dict(checkpoint['model_state_dict'])
 
     optimizer = optim.Adam(model.parameters(),lr=args.lr)
 
@@ -169,5 +169,4 @@ def train():
                 })
 
 if __name__=='__main__':
-
-    train()
+    train_with_config()
