@@ -14,16 +14,17 @@ from torch import optim
 import pandas as pd
 from typing import List, Optional, Tuple
 import numpy as np
+import pickle
+import wandb
 
 # Import belief-aware components
 from model.belief_trajairnet import BeliefAwareTrajAirNet
 from model.utils import TrajectoryDataset, seq_collate, loss_func
 from model.belief_manager import BeliefManager, RadioCall
 from model.llm_belief_updater import LLMBeliefUpdater
-from model.belief_states import pad_belief_sequences, VOCAB_SIZE, INTENT_VOCABULARY
+from model.belief_states import pad_belief_sequences, VOCAB_SIZE, TOTAL_VOCAB_SIZE, INTENT_VOCABULARY
 
-# Import test function
-from test_with_beliefs import test
+# Test function will be imported only when needed to avoid circular import
 
 
 class BeliefTrajectoryDataset:
@@ -91,8 +92,8 @@ class BeliefTrajectoryDataset:
                 belief_sequences.append(belief_indices)
                 lengths.append(len(belief_indices))
             else:
-                # No belief available - use unknown intent
-                belief_sequences.append([INTENT_VOCABULARY['unknown']])  # 'unknown' intent
+                # No belief available - use 'other' intent
+                belief_sequences.append([INTENT_VOCABULARY['other']])  # 'other' intent
                 lengths.append(1)
         
         return belief_sequences, torch.tensor(lengths, dtype=torch.long)
@@ -131,7 +132,7 @@ def belief_collate(data):
 
 def create_belief_manager_from_transcripts(transcript_path: str) -> BeliefManager:
     """
-    Create BeliefManager from existing transcript data.
+    Create BeliefManager from existing transcript data with pickle caching.
     
     Args:
         transcript_path: Path to transcripts_with_goals.csv
@@ -139,11 +140,31 @@ def create_belief_manager_from_transcripts(transcript_path: str) -> BeliefManage
     Returns:
         Populated BeliefManager
     """
-    belief_manager = BeliefManager("belief_cache")
-    
     if not os.path.exists(transcript_path):
         print(f"Warning: Transcript file {transcript_path} not found. Using empty belief manager.")
+        return BeliefManager("belief_cache")
+    
+    # Create pickle cache filename based on transcript path
+    cache_filename = transcript_path.replace('.csv', '_processed_beliefs.pkl')
+    
+    # Check if pickle cache exists
+    if os.path.exists(cache_filename):
+        print(f"Loading cached processed beliefs from {cache_filename}")
+        with open(cache_filename, 'rb') as f:
+            belief_manager = pickle.load(f)
+        
+        # Print statistics
+        stats = belief_manager.get_statistics()
+        print(f"Loaded Cached Belief Manager Statistics:")
+        print(f"  Total aircraft: {stats['total_aircraft']}")
+        print(f"  Total beliefs: {stats['total_beliefs']}")
+        print(f"  Average belief length: {stats['average_belief_length']:.2f}")
+        
         return belief_manager
+    
+    # Cache doesn't exist, process from scratch
+    print(f"No cache found, processing radio calls (this will take a few minutes)...")
+    belief_manager = BeliefManager("belief_cache")
     
     # Load transcript data
     df = pd.read_csv(transcript_path)
@@ -169,9 +190,14 @@ def create_belief_manager_from_transcripts(transcript_path: str) -> BeliefManage
             print(f"Warning: Failed to process radio call {idx}: {e}")
             continue
     
+    # Save to pickle cache
+    print(f"Saving processed beliefs to {cache_filename}")
+    with open(cache_filename, 'wb') as f:
+        pickle.dump(belief_manager, f)
+    
     # Print statistics
     stats = belief_manager.get_statistics()
-    print(f"Belief Manager Statistics:")
+    print(f"Processed Belief Manager Statistics:")
     print(f"  Total aircraft: {stats['total_aircraft']}")
     print(f"  Total beliefs: {stats['total_beliefs']}")
     print(f"  Average belief length: {stats['average_belief_length']:.2f}")
@@ -179,7 +205,7 @@ def create_belief_manager_from_transcripts(transcript_path: str) -> BeliefManage
     return belief_manager
 
 
-def train():
+def train(use_wandb_config=False):
     """Main training function with belief integration."""
     
     # Parse arguments
@@ -213,11 +239,16 @@ def train():
     
     # Belief-specific params (NEW)
     parser.add_argument('--belief_embed_dim', type=int, default=64)
-    parser.add_argument('--belief_vocab_size', type=int, default=VOCAB_SIZE)
+    parser.add_argument('--belief_vocab_size', type=int, default=TOTAL_VOCAB_SIZE)
     parser.add_argument('--belief_integration_mode', type=str, default='concatenate',
                        choices=['concatenate', 'add', 'gated'])
     parser.add_argument('--transcripts_path', type=str, 
                        default='../main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv')
+    
+    # Wandb params (NEW)
+    parser.add_argument('--wandb_project', type=str, default='trajairnet-beliefs')
+    parser.add_argument('--wandb_run_name', type=str, default=None)
+    parser.add_argument('--disable_wandb', action='store_true', help='Disable wandb logging')
     
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--total_epochs', type=int, default=50)
@@ -227,6 +258,21 @@ def train():
     parser.add_argument('--model_pth', type=str, default="/saved_models/")
     
     args = parser.parse_args()
+    
+    # Initialize wandb
+    if not args.disable_wandb:
+        wandb.init(
+            project=args.wandb_project,
+            name=args.wandb_run_name,
+            config=vars(args),
+            tags=["belief-aware", "trajectory-prediction"]
+        )
+        
+        # If using wandb sweeps, override args with wandb.config
+        if use_wandb_config and wandb.config:
+            for key, value in wandb.config.items():
+                if hasattr(args, key):
+                    setattr(args, key, value)
     
     # Device selection
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -261,6 +307,10 @@ def train():
     model.to(device)
     print(f"Created BeliefAwareTrajAirNet with {sum(p.numel() for p in model.parameters()):,} parameters")
     
+    # Log model to wandb
+    if not args.disable_wandb:
+        wandb.watch(model, log="all", log_freq=100)
+    
     # Optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     
@@ -280,7 +330,7 @@ def train():
             batch = [tensor.to(device) for tensor in batch]
             
             # Unpack batch with belief data
-            obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, timestamp, tail, belief_padded, belief_lengths = batch
+            obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, timestamp, tail, seq_start_end, belief_padded, belief_lengths = batch
             
             num_agents = obs_traj.shape[1]
             pred_traj = torch.transpose(pred_traj, 1, 2)
@@ -322,18 +372,26 @@ def train():
                 loss_batch = 0
                 batch_count = 0
         
-        print("EPOCH:", epoch, "Train Loss:", loss)
+        epoch_loss = tot_loss / tot_batch_count
+        print("EPOCH:", epoch, "Train Loss:", epoch_loss)
+        
+        # Log training metrics to wandb
+        if not args.disable_wandb:
+            wandb.log({
+                "epoch": epoch,
+                "train_loss": epoch_loss,
+                "learning_rate": optimizer.param_groups[0]['lr']
+            })
         
         # Save model
         if args.save_model:
-            loss = tot_loss / tot_batch_count
             model_path = os.getcwd() + args.model_pth + "belief_model_" + args.dataset_name + "_" + str(epoch) + ".pt"
             print("Saving model at", model_path)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss,
+                'loss': epoch_loss,
                 'args': args
             }, model_path)
         
@@ -341,8 +399,18 @@ def train():
         if args.evaluate:
             print("Starting Testing....")
             model.eval()
+            # Import test function here to avoid circular import
+            from test_with_beliefs import test
             test_ade_loss, test_fde_loss = test(model, loader_test, device)
-            print("EPOCH:", epoch, "Train Loss:", loss, "Test ADE Loss:", test_ade_loss, "Test FDE Loss:", test_fde_loss)
+            print("EPOCH:", epoch, "Train Loss:", epoch_loss, "Test ADE Loss:", test_ade_loss, "Test FDE Loss:", test_fde_loss)
+            
+            # Log test metrics to wandb
+            if not args.disable_wandb:
+                wandb.log({
+                    "epoch": epoch,
+                    "test_ade_loss": test_ade_loss,
+                    "test_fde_loss": test_fde_loss
+                })
 
 
 if __name__ == '__main__':

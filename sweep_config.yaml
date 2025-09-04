@@ -1,0 +1,20 @@
+program: train_with_beliefs.py
+method: bayes
+metric:
+  name: test_ade_loss
+  goal: minimize
+parameters:
+  lr:
+    distribution: log_uniform_values
+    min: 0.0005
+    max: 0.005
+  belief_embed_dim:
+    values: [32, 64, 128, 256]
+  belief_integration_mode:
+    values: ['concatenate', 'add', 'gated']
+  total_epochs:
+    values: [5, 10, 20, 30]
+early_terminate:
+  type: hyperband
+  min_iter: 5
+  eta: 2
