@@ -28,36 +28,24 @@ INTENT_VOCABULARY = {
     'final_8': 8,
     'final_26': 9,
     
-    # Runway Operations (6)
+    # Runway Operations (4)
     'takeoff_8': 10,
     'takeoff_26': 11,
     'land_8': 12,
     'land_26': 13,
-    'touch_and_go_8': 14,
-    'touch_and_go_26': 15,
     
-    # Pattern Entry/Exit (8)
-    'pattern_entry_45': 16,
-    'pattern_entry_straight_in': 17,
-    'pattern_entry_teardrop': 18,
-    'depart_north': 19,
-    'depart_south': 20,
-    'depart_east': 21,
-    'depart_west': 22,
-    'go_around': 23,
+    # Departure Directions (4)
+    'depart_north': 14,
+    'depart_south': 15,
+    'depart_east': 16,
+    'depart_west': 17,
+
+    # Ground Operations (1)
+    'clear_of_runway_8': 18,
+    'clear_of_runway_26': 19,
     
-    # Ground Operations (5)
-    'taxi_to_runway': 24,
-    'taxi_to_ramp': 25,
-    'hold_short': 26,
-    'clear_runway': 27,
-    'engine_start': 28,
-    
-    # Meta States (4)
-    'unknown': 29,
-    'insufficient_info': 30,
-    'multiple_intents': 31,
-    'other': 32
+    # Meta State (1)
+    'other': 20
 }
 
 # Reverse mapping for decoding
