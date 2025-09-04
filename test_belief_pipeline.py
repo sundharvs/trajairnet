@@ -15,7 +15,7 @@ import os
 # Add current directory to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from model.belief_states import BeliefState, BeliefEncoder, test_belief_encoder
+from model.belief_states import BeliefState, BeliefEncoder, test_belief_encoder, VOCAB_SIZE, INTENT_VOCABULARY
 from model.belief_manager import BeliefManager, RadioCall, test_belief_manager
 from model.llm_belief_updater import LLMBeliefUpdater, test_llm_belief_updater
 from model.belief_aware_gat import BeliefAwareGAT, test_belief_aware_gat
@@ -96,7 +96,7 @@ def test_belief_to_trajectory_pipeline():
         num_context_input_c = 2
         cnn_kernels = 2
         belief_embed_dim = 32
-        belief_vocab_size = 35
+        belief_vocab_size = VOCAB_SIZE
         belief_integration_mode = 'concatenate'
     
     args = MockArgs()
@@ -120,7 +120,7 @@ def test_belief_to_trajectory_pipeline():
     belief_sequences = [
         [4, 6, 8, 12],     # Agent 1: downwind_8 → base_8 → final_8 → land_8
         [5, 7, 9, 13, 11], # Agent 2: downwind_26 → base_26 → final_26 → land_26 → takeoff_26
-        [29]               # Agent 3: unknown
+        [INTENT_VOCABULARY['unknown']]               # Agent 3: unknown
     ]
     belief_lengths = torch.tensor([4, 5, 1], dtype=torch.long)
     
@@ -197,8 +197,8 @@ def test_full_integration():
             belief_sequences.append(indices)
             belief_lengths.append(len(indices))
         else:
-            print(f"  {tail}: No belief available → [29] (unknown)")
-            belief_sequences.append([29])
+            print(f"  {tail}: No belief available → [{INTENT_VOCABULARY['unknown']}] (unknown)")
+            belief_sequences.append([INTENT_VOCABULARY['unknown']])
             belief_lengths.append(1)
     
     belief_lengths = torch.tensor(belief_lengths, dtype=torch.long)

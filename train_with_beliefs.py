@@ -20,7 +20,7 @@ from model.belief_trajairnet import BeliefAwareTrajAirNet
 from model.utils import TrajectoryDataset, seq_collate, loss_func
 from model.belief_manager import BeliefManager, RadioCall
 from model.llm_belief_updater import LLMBeliefUpdater
-from model.belief_states import pad_belief_sequences
+from model.belief_states import pad_belief_sequences, VOCAB_SIZE, INTENT_VOCABULARY
 
 # Import test function
 from test_with_beliefs import test
@@ -92,7 +92,7 @@ class BeliefTrajectoryDataset:
                 lengths.append(len(belief_indices))
             else:
                 # No belief available - use unknown intent
-                belief_sequences.append([29])  # 'unknown' intent
+                belief_sequences.append([INTENT_VOCABULARY['unknown']])  # 'unknown' intent
                 lengths.append(1)
         
         return belief_sequences, torch.tensor(lengths, dtype=torch.long)
@@ -213,7 +213,7 @@ def train():
     
     # Belief-specific params (NEW)
     parser.add_argument('--belief_embed_dim', type=int, default=64)
-    parser.add_argument('--belief_vocab_size', type=int, default=35)
+    parser.add_argument('--belief_vocab_size', type=int, default=VOCAB_SIZE)
     parser.add_argument('--belief_integration_mode', type=str, default='concatenate',
                        choices=['concatenate', 'add', 'gated'])
     parser.add_argument('--transcripts_path', type=str, 

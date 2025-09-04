@@ -13,6 +13,7 @@ import numpy as np
 
 from model.belief_trajairnet import BeliefAwareTrajAirNet
 from model.utils import TrajectoryDataset
+from model.belief_states import VOCAB_SIZE
 from train_with_beliefs import BeliefTrajectoryDataset, belief_collate, create_belief_manager_from_transcripts
 
 
@@ -150,7 +151,7 @@ def main():
     
     # Belief params
     parser.add_argument('--belief_embed_dim', type=int, default=64)
-    parser.add_argument('--belief_vocab_size', type=int, default=35)
+    parser.add_argument('--belief_vocab_size', type=int, default=VOCAB_SIZE)
     parser.add_argument('--belief_integration_mode', type=str, default='concatenate')
     parser.add_argument('--transcripts_path', type=str, 
                        default='../main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv')
