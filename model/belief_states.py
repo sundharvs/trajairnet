@@ -174,6 +174,7 @@ class BeliefEncoder(nn.Module):
         embedded = self.intent_embedding(belief_sequences)  # [batch, max_seq_len, embed_dim]
         
         # Pack for variable-length processing
+        # Note: pack_padded_sequence requires lengths to be on CPU
         packed = nn.utils.rnn.pack_padded_sequence(
             embedded, sequence_lengths.cpu(), batch_first=True, enforce_sorted=False
         )

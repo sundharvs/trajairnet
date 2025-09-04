@@ -41,7 +41,7 @@ class BeliefAwareTrajAirNet(nn.Module):
         
         # Belief embedding configuration
         belief_embed_dim = getattr(args, 'belief_embed_dim', 64)
-        belief_vocab_size = getattr(args, 'belief_vocab_size', 35)  # From belief_states.py
+        belief_vocab_size = getattr(args, 'belief_vocab_size', 23)  # TOTAL_VOCAB_SIZE from belief_states.py
         belief_integration_mode = getattr(args, 'belief_integration_mode', 'concatenate')
         
         # GAT dimensions - updated to include belief embeddings
@@ -105,13 +105,16 @@ class BeliefAwareTrajAirNet(nn.Module):
             alpha=alpha, nheads=n_heads, belief_embed_dim=belief_embed_dim
         )
         
-        # CVAE and decoder (same as original)
+        # CVAE and decoder (adjusted for belief integration)
+        # For concatenation mode, the conditional input size changes
+        cvae_conditional_size = gat_out + spatial_dim  # Use original spatial_dim, not gat_in
+        
         self.cvae = CVAE(
             encoder_layer_sizes=cvae_encoder,
             latent_size=args.cvae_hidden,
             decoder_layer_sizes=cvae_decoder,
             conditional=True,
-            num_labels=gat_out + gat_in
+            num_labels=cvae_conditional_size
         )
         self.linear_decoder = nn.Linear(args.mlp_layer, n_classes)
         
@@ -188,6 +191,10 @@ class BeliefAwareTrajAirNet(nn.Module):
             from model.belief_states import pad_belief_sequences
             
             padded_beliefs, lengths = pad_belief_sequences(belief_sequences)
+            # Ensure belief tensors are on the same device as model
+            if padded_beliefs.numel() > 0:
+                padded_beliefs = padded_beliefs.to(next(self.parameters()).device)
+                lengths = lengths.to(next(self.parameters()).device)
             belief_embeddings = self.belief_encoder(padded_beliefs, lengths)
         
         # Integrate belief embeddings with spatial features
@@ -272,6 +279,10 @@ class BeliefAwareTrajAirNet(nn.Module):
         if belief_sequences is not None and belief_lengths is not None:
             from model.belief_states import pad_belief_sequences
             padded_beliefs, lengths = pad_belief_sequences(belief_sequences)
+            # Ensure belief tensors are on the same device as model
+            if padded_beliefs.numel() > 0:
+                padded_beliefs = padded_beliefs.to(next(self.parameters()).device)
+                lengths = lengths.to(next(self.parameters()).device)
             belief_embeddings = self.belief_encoder(padded_beliefs, lengths)
         
         # GAT with beliefs

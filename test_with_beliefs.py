@@ -13,7 +13,7 @@ import numpy as np
 
 from model.belief_trajairnet import BeliefAwareTrajAirNet
 from model.utils import TrajectoryDataset
-from model.belief_states import VOCAB_SIZE
+from model.belief_states import VOCAB_SIZE, TOTAL_VOCAB_SIZE
 from train_with_beliefs import BeliefTrajectoryDataset, belief_collate, create_belief_manager_from_transcripts
 
 
@@ -53,7 +53,7 @@ def test(model, loader_test, device):
         batch = [tensor.to(device) for tensor in batch]
         
         # Unpack batch with belief data
-        obs_traj_all, pred_traj_all, obs_traj_rel_all, pred_traj_rel_all, context, timestamp, tail, belief_padded, belief_lengths = batch
+        obs_traj_all, pred_traj_all, obs_traj_rel_all, pred_traj_rel_all, context, timestamp, tail, seq_start_end, belief_padded, belief_lengths = batch
         num_agents = obs_traj_all.shape[1]
         
         best_ade_loss = float('inf')
@@ -151,7 +151,7 @@ def main():
     
     # Belief params
     parser.add_argument('--belief_embed_dim', type=int, default=64)
-    parser.add_argument('--belief_vocab_size', type=int, default=VOCAB_SIZE)
+    parser.add_argument('--belief_vocab_size', type=int, default=TOTAL_VOCAB_SIZE)
     parser.add_argument('--belief_integration_mode', type=str, default='concatenate')
     parser.add_argument('--transcripts_path', type=str, 
                        default='../main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv')
