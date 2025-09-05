@@ -20,7 +20,7 @@ def train_with_config(config=None):
         
         ##Dataset params
         parser.add_argument('--dataset_folder',type=str,default='../dataset/')
-        parser.add_argument('--dataset_name',type=str,default='7days1')
+        parser.add_argument('--dataset_name',type=str,default='7daysJune')
         parser.add_argument('--obs',type=int,default=11)
         parser.add_argument('--preds',type=int,default=120)
         parser.add_argument('--preds_step',type=int,default=10)
@@ -64,8 +64,48 @@ def train_with_config(config=None):
 
         args = parser.parse_args()
     else:
-        # Use provided config
+        # Use provided config - start with defaults and override
         args = argparse.Namespace()
+        
+        # Set all defaults first
+        defaults = {
+            'dataset_folder': '../dataset/',
+            'dataset_name': '7daysJune',
+            'obs': 11,
+            'preds': 120,
+            'preds_step': 10,
+            'input_channels': 3,
+            'tcn_channel_size': 256,
+            'tcn_layers': 2,
+            'tcn_kernels': 4,
+            'num_context_input_c': 2,
+            'num_context_output_c': 7,
+            'cnn_kernels': 2,
+            'gat_heads': 16,
+            'graph_hidden': 256,
+            'dropout': 0.05,
+            'alpha': 0.2,
+            'cvae_hidden': 128,
+            'cvae_channel_size': 128,
+            'cvae_layers': 2,
+            'mlp_layer': 32,
+            'intent_embed_dim': 32,
+            'num_intent_classes': 16,
+            'lr': 0.001,
+            'total_epochs': 50,
+            'delim': ' ',
+            'evaluate': True,
+            'save_model': False,  # Disable for sweeps
+            'model_pth': "/saved_models/",
+            'use_wandb': True,
+            'wandb_project': "trajairnet-intent-attention-head",
+            'wandb_entity': None
+        }
+        
+        for key, value in defaults.items():
+            setattr(args, key, value)
+            
+        # Override with provided config
         for key, value in config.items():
             setattr(args, key, value)
 
