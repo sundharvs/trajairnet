@@ -19,7 +19,7 @@ def train_with_config(config=None):
         parser = argparse.ArgumentParser(description='Train TrajAirNet model')
         
         ##Dataset params
-        parser.add_argument('--dataset_folder',type=str,default='/dataset/')
+        parser.add_argument('--dataset_folder',type=str,default='../dataset/')
         parser.add_argument('--dataset_name',type=str,default='7days1')
         parser.add_argument('--obs',type=int,default=11)
         parser.add_argument('--preds',type=int,default=120)
@@ -69,8 +69,8 @@ def train_with_config(config=None):
         for key, value in config.items():
             setattr(args, key, value)
 
-    ##Initialize wandb
-    if args.use_wandb:
+    ##Initialize wandb (only if not already initialized by sweep)
+    if args.use_wandb and not wandb.run:
         wandb.init(
             project=args.wandb_project,
             entity=args.wandb_entity,
@@ -84,10 +84,12 @@ def train_with_config(config=None):
     datapath = args.dataset_folder + args.dataset_name + "/processed_data/"
 
     print("Loading Train Data from ",datapath + "train")
-    dataset_train = TrajectoryDataset(datapath + "train", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim)
+    dataset_train = TrajectoryDataset(datapath + "train", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim,
+                                    intent_csv_path="../main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv")
 
     print("Loading Test Data from ",datapath + "test")
-    dataset_test = TrajectoryDataset(datapath + "test", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim)
+    dataset_test = TrajectoryDataset(datapath + "test", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim,
+                                   intent_csv_path="../main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv")
 
     loader_train = DataLoader(dataset_train,batch_size=1,num_workers=4,shuffle=True,collate_fn=seq_collate)
     loader_test = DataLoader(dataset_test,batch_size=1,num_workers=4,shuffle=True,collate_fn=seq_collate)
@@ -169,4 +171,23 @@ def train_with_config(config=None):
                 })
 
 if __name__=='__main__':
-    train_with_config()
+    # Check if called with command line args (for wandb sweep)
+    import sys
+    if len(sys.argv) > 1:
+        # Parse command line arguments
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--lr', type=float)
+        parser.add_argument('--total_epochs', type=int)
+        parser.add_argument('--intent_embed_dim', type=int)
+        parser.add_argument('--gat_heads', type=int)
+        parser.add_argument('--graph_hidden', type=int)
+        parser.add_argument('--dropout', type=float)
+        parser.add_argument('--alpha', type=float)
+        parser.add_argument('--tcn_channel_size', type=int)
+        parser.add_argument('--tcn_layers', type=int)
+        
+        args = parser.parse_args()
+        config_overrides = {k: v for k, v in vars(args).items() if v is not None}
+        train_with_config(config_overrides)
+    else:
+        train_with_config()

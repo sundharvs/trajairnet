@@ -1,0 +1,23 @@
+2025-09-05 18:18:09,138 INFO    MainThread:373110 [wandb_setup.py:_flush():80] Current SDK version is 0.21.1
+2025-09-05 18:18:09,139 INFO    MainThread:373110 [wandb_setup.py:_flush():80] Configure stats pid to 373110
+2025-09-05 18:18:09,139 INFO    MainThread:373110 [wandb_setup.py:_flush():80] Loading settings from /home/ssangeetha3/.config/wandb/settings
+2025-09-05 18:18:09,139 INFO    MainThread:373110 [wandb_setup.py:_flush():80] Loading settings from /home/ssangeetha3/git/ctaf-intent-inference/trajairnet/wandb/settings
+2025-09-05 18:18:09,139 INFO    MainThread:373110 [wandb_setup.py:_flush():80] Loading settings from environment variables
+2025-09-05 18:18:09,139 INFO    MainThread:373110 [wandb_init.py:setup_run_log_directory():703] Logging user logs to /home/ssangeetha3/git/ctaf-intent-inference/trajairnet/wandb/run-20250905_181809-hana9ujv/logs/debug.log
+2025-09-05 18:18:09,139 INFO    MainThread:373110 [wandb_init.py:setup_run_log_directory():704] Logging internal logs to /home/ssangeetha3/git/ctaf-intent-inference/trajairnet/wandb/run-20250905_181809-hana9ujv/logs/debug-internal.log
+2025-09-05 18:18:09,139 INFO    MainThread:373110 [wandb_init.py:init():830] calling init triggers
+2025-09-05 18:18:09,139 INFO    MainThread:373110 [wandb_init.py:init():835] wandb.init called with sweep_config: {'alpha': 0.2492997355959215, 'dropout': 0.0724196658817799, 'gat_heads': 16, 'graph_hidden': 256, 'intent_embed_dim': 32, 'lr': 0.001, 'tcn_channel_size': 384, 'tcn_layers': 1}
+config: {'dataset_folder': '/storage/home/hcoda1/1/ssangeetha3/p-skousik3-0/ssangeetha3/ctaf-intent-inference/dataset/', 'dataset_name': '7daysJune', 'obs': 11, 'preds': 120, 'preds_step': 10, 'input_channels': 3, 'tcn_channel_size': 384, 'tcn_layers': 1, 'tcn_kernels': 4, 'num_context_input_c': 2, 'num_context_output_c': 7, 'cnn_kernels': 2, 'gat_heads': 16, 'graph_hidden': 256, 'dropout': 0.0724196658817799, 'alpha': 0.2492997355959215, 'cvae_hidden': 128, 'cvae_channel_size': 128, 'cvae_layers': 2, 'mlp_layer': 32, 'intent_embed_dim': 32, 'num_intent_classes': 16, 'lr': 0.001, 'total_epochs': 20, 'delim': ' ', 'evaluate': True, 'save_model': True, 'model_pth': '/saved_models/', 'use_wandb': True, 'wandb_project': 'trajairnet-intent-interaction-matrix', 'wandb_entity': None, '_wandb': {}}
+2025-09-05 18:18:09,139 INFO    MainThread:373110 [wandb_init.py:init():871] starting backend
+2025-09-05 18:18:09,345 INFO    MainThread:373110 [wandb_init.py:init():874] sending inform_init request
+2025-09-05 18:18:09,347 INFO    MainThread:373110 [wandb_init.py:init():882] backend started and connected
+2025-09-05 18:18:09,348 INFO    MainThread:373110 [wandb_run.py:_config_callback():1380] config_cb None None {'alpha': 0.2492997355959215, 'dropout': 0.0724196658817799, 'gat_heads': 16, 'graph_hidden': 256, 'intent_embed_dim': 32, 'lr': 0.001, 'tcn_channel_size': 384, 'tcn_layers': 1}
+2025-09-05 18:18:09,348 INFO    MainThread:373110 [wandb_init.py:init():953] updated telemetry
+2025-09-05 18:18:09,351 INFO    MainThread:373110 [wandb_init.py:init():977] communicating run to backend with 90.0 second timeout
+2025-09-05 18:18:09,613 INFO    MainThread:373110 [wandb_init.py:init():1029] starting run threads in backend
+2025-09-05 18:18:09,649 INFO    MainThread:373110 [wandb_run.py:_console_start():2494] atexit reg
+2025-09-05 18:18:09,649 INFO    MainThread:373110 [wandb_run.py:_redirect():2342] redirect: wrap_raw
+2025-09-05 18:18:09,649 INFO    MainThread:373110 [wandb_run.py:_redirect():2411] Wrapping output streams.
+2025-09-05 18:18:09,649 INFO    MainThread:373110 [wandb_run.py:_redirect():2434] Redirects installed.
+2025-09-05 18:18:09,650 INFO    MainThread:373110 [wandb_init.py:init():1075] run started, returning control to user process
+2025-09-05 18:18:09,795 INFO    MsgRouterThr:373110 [mailbox.py:close():129] [no run ID] Closing mailbox, abandoning 1 handles.

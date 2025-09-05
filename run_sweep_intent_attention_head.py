@@ -10,7 +10,7 @@ def run_sweep():
     Run a wandb sweep for intent-attention-head hyperparameter tuning
     """
     # Initialize wandb run
-    wandb.init()
+    wandb.init(project="trajairnet-intent-attention-head")
     
     # Get hyperparameters from wandb config
     config = wandb.config
@@ -18,7 +18,7 @@ def run_sweep():
     # Set up full configuration with defaults and sweep parameters
     full_config = {
         # Dataset params
-        'dataset_folder': '/dataset/',
+        'dataset_folder': '../dataset/',
         'dataset_name': '7days1',
         'obs': 11,  # Use default
         'preds': 120,  # Use default

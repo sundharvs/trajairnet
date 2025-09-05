@@ -1,0 +1,12 @@
+Error loading intent data from /storage/home/hcoda1/1/ssangeetha3/p-skousik3-0/ssangeetha3/ctaf-intent-inference/main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv: [Errno 2] No such file or directory: '/storage/home/hcoda1/1/ssangeetha3/p-skousik3-0/ssangeetha3/ctaf-intent-inference/main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv'
+Will default to intent category 15 (Insufficient information) for all aircraft
+Traceback (most recent call last):
+  File "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet/train_sweep.py", line 173, in <module>
+    train_with_config(config_overrides)
+  File "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet/train_sweep.py", line 86, in train_with_config
+    dataset_train = TrajectoryDataset(
+                    ^^^^^^^^^^^^^^^^^^
+  File "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet/model/utils.py", line 150, in __init__
+    all_files = os.listdir(self.data_dir)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/storage/home/hcoda1/1/ssangeetha3/p-skousik3-0/ssangeetha3/ctaf-intent-inference/dataset/7daysJune/processed_data/train'

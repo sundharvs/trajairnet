@@ -1,0 +1,18 @@
+wandb_version: 1
+
+alpha:
+  value: 0.2492997355959215
+dropout:
+  value: 0.0724196658817799
+gat_heads:
+  value: 16
+graph_hidden:
+  value: 256
+intent_embed_dim:
+  value: 32
+lr:
+  value: 0.001
+tcn_channel_size:
+  value: 384
+tcn_layers:
+  value: 1

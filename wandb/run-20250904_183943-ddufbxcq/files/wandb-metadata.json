@@ -1,0 +1,47 @@
+{
+  "os":  "Linux-6.8.0-65-generic-x86_64-with-glibc2.35",
+  "python":  "CPython 3.12.11",
+  "startedAt":  "2025-09-04T22:39:43.710872Z",
+  "program":  "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet/train.py",
+  "codePath":  "train.py",
+  "codePathLocal":  "train.py",
+  "git":  {
+    "remote":  "git@github.com:sundharvs/trajairnet.git",
+    "commit":  "c3779a2abb0c26fd91fc1e3383509961c82cc0c6"
+  },
+  "email":  "sundharvs@gmail.com",
+  "root":  "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet",
+  "host":  "MEL07789D.me.gatech.edu",
+  "executable":  "/home/ssangeetha3/git/ctaf-intent-inference/.pixi/envs/default/bin/python3",
+  "cpu_count":  16,
+  "cpu_count_logical":  32,
+  "gpu":  "NVIDIA RTX 6000 Ada Generation",
+  "gpu_count":  2,
+  "disk":  {
+    "/":  {
+      "total":  "1965440720896",
+      "used":  "91161698304"
+    }
+  },
+  "memory":  {
+    "total":  "269349924864"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA RTX 6000 Ada Generation",
+      "memoryTotal":  "51527024640",
+      "cudaCores":  18176,
+      "architecture":  "Ada",
+      "uuid":  "GPU-862c7587-f95e-4e1f-1be0-3160cb489cae"
+    },
+    {
+      "name":  "NVIDIA RTX 6000 Ada Generation",
+      "memoryTotal":  "51527024640",
+      "cudaCores":  18176,
+      "architecture":  "Ada",
+      "uuid":  "GPU-49246112-0658-fe8a-9b4c-90699c7b9e2c"
+    }
+  ],
+  "cudaVersion":  "12.4",
+  "writerId":  "yvu52w0tp6w939qios7lrgsxl5vgpvdp"
+}

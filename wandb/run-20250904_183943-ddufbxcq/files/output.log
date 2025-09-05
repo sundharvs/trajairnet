@@ -1,0 +1,14 @@
+Loading Train Data from  /dataset/7days1/processed_data/train
+Loaded 420 radio call records for intent lookup
+Error loading intent data from /home/ssangeetha3/git/ctaf-intent-inference/main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv: Invalid isoformat string: '2022-06-10 10:08:2921659'
+Will default to intent category 15 (Insufficient information) for all aircraft
+Traceback (most recent call last):
+  File "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet/train.py", line 173, in <module>
+    train()
+  File "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet/train.py", line 83, in train
+    dataset_train = TrajectoryDataset(datapath + "train", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet/model/utils.py", line 150, in __init__
+    all_files = os.listdir(self.data_dir)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dataset/7days1/processed_data/train'

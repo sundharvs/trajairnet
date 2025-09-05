@@ -1,0 +1,11 @@
+Loaded 420 radio call records for intent lookup
+Error loading intent data from ../main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv: Invalid isoformat string: '2022-06-10 10:08:2921659'
+Will default to intent category 15 (Insufficient information) for all aircraft
+100%|██████████| 178/178 [00:20<00:00,  8.79it/s]
+Loaded 420 radio call records for intent lookup
+Error loading intent data from ../main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv: Invalid isoformat string: '2022-06-10 10:08:2921659'
+Will default to intent category 15 (Insufficient information) for all aircraft
+100%|██████████| 45/45 [00:08<00:00,  5.40it/s]
+/home/ssangeetha3/git/ctaf-intent-inference/.pixi/envs/default/lib/python3.12/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+  4%|▍         | 4515/107654 [01:21<28:40, 59.95it/s]
