@@ -213,7 +213,7 @@ def train(use_wandb_config=False):
     
     # Dataset params
     parser.add_argument('--dataset_folder', type=str, default='../dataset/')
-    parser.add_argument('--dataset_name', type=str, default='7days1')
+    parser.add_argument('--dataset_name', type=str, default='7daysJune')
     parser.add_argument('--obs', type=int, default=11)
     parser.add_argument('--preds', type=int, default=120)
     parser.add_argument('--preds_step', type=int, default=10)
