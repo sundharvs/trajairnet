@@ -8,7 +8,7 @@ def run_sweep():
     """
     Called by wandb agent. Pulls config from sweep and runs training.
     """
-    wandb.init()
+    wandb.init(project="trajairnet-intent-interaction-matrix")
     sweep_config = dict(wandb.config)  # sweep overrides only
     train_with_config(sweep_config)
 
@@ -26,7 +26,9 @@ def main():
 
 
 if __name__ == "__main__":
-    if any(arg.startswith("--") for arg in sys.argv[1:]):
+    # Check if we're being called by wandb agent (it sets WANDB_SWEEP_ID env var)
+    import os
+    if os.environ.get('WANDB_SWEEP_ID'):
         run_sweep()
     else:
         main()

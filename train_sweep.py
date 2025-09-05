@@ -13,7 +13,7 @@ from test import test
 # Default config dictionary (everything that doesn't change in sweeps)
 DEFAULT_CONFIG = {
     # Dataset params
-    'dataset_folder': '/storage/home/hcoda1/1/ssangeetha3/p-skousik3-0/ssangeetha3/ctaf-intent-inference/dataset/',
+    'dataset_folder': '../dataset/',
     'dataset_name': '7daysJune',
     'obs': 11,
     'preds': 120,
@@ -72,8 +72,8 @@ def train_with_config(config=None):
     # Convert to argparse.Namespace for legacy code
     args = argparse.Namespace(**merged_config)
 
-    # Initialize wandb
-    if args.use_wandb:
+    # Initialize wandb (only if not already initialized by sweep)
+    if args.use_wandb and not wandb.run:
         wandb.init(project=args.wandb_project,
                    entity=args.wandb_entity,
                    config=vars(args))
@@ -89,8 +89,7 @@ def train_with_config(config=None):
         pred_len=args.preds,
         step=args.preds_step,
         delim=args.delim,
-        intent_csv_path=os.path.expanduser(
-            "/storage/home/hcoda1/1/ssangeetha3/p-skousik3-0/ssangeetha3/ctaf-intent-inference/main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv")
+        intent_csv_path="../main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv"
     )
     dataset_test = TrajectoryDataset(
         os.path.join(datapath, "test"),
@@ -98,8 +97,7 @@ def train_with_config(config=None):
         pred_len=args.preds,
         step=args.preds_step,
         delim=args.delim,
-        intent_csv_path=os.path.expanduser(
-            "/storage/home/hcoda1/1/ssangeetha3/p-skousik3-0/ssangeetha3/ctaf-intent-inference/main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv")
+        intent_csv_path="../main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv"
     )
 
     loader_train = DataLoader(dataset_train, batch_size=1, num_workers=4, shuffle=True, collate_fn=seq_collate)
@@ -144,3 +142,30 @@ def train_with_config(config=None):
     
     if args.use_wandb:
         wandb.finish()
+
+
+if __name__ == "__main__":
+    """
+    Command line entry point for wandb sweeps.
+    Parses command line args and calls train_with_config.
+    """
+    import argparse
+    
+    parser = argparse.ArgumentParser()
+    
+    # Add all the sweep parameters as command line arguments
+    parser.add_argument('--tcn_channel_size', type=int)
+    parser.add_argument('--tcn_layers', type=int) 
+    parser.add_argument('--gat_heads', type=int)
+    parser.add_argument('--graph_hidden', type=int)
+    parser.add_argument('--dropout', type=float)
+    parser.add_argument('--alpha', type=float)
+    parser.add_argument('--intent_embed_dim', type=int)
+    parser.add_argument('--lr', type=float)
+    
+    args = parser.parse_args()
+    
+    # Convert to dictionary, filtering out None values
+    config_overrides = {k: v for k, v in vars(args).items() if v is not None}
+    
+    train_with_config(config_overrides)
