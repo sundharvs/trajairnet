@@ -212,7 +212,7 @@ def train(use_wandb_config=False):
     parser = argparse.ArgumentParser(description='Train Belief-Aware TrajAirNet model')
     
     # Dataset params
-    parser.add_argument('--dataset_folder', type=str, default='/dataset/')
+    parser.add_argument('--dataset_folder', type=str, default='../dataset/')
     parser.add_argument('--dataset_name', type=str, default='7days1')
     parser.add_argument('--obs', type=int, default=11)
     parser.add_argument('--preds', type=int, default=120)
@@ -259,8 +259,8 @@ def train(use_wandb_config=False):
     
     args = parser.parse_args()
     
-    # Initialize wandb
-    if not args.disable_wandb:
+    # Initialize wandb (only if not already initialized by sweep)
+    if not args.disable_wandb and not wandb.run:
         wandb.init(
             project=args.wandb_project,
             name=args.wandb_run_name,

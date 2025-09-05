@@ -11,7 +11,7 @@ from train_with_beliefs import train
 def sweep_train():
     """Wrapper function for wandb sweeps."""
     # Initialize wandb run (this gets called by the sweep agent)
-    wandb.init()
+    wandb.init(project="belief-state-integration")
     
     # Run training with wandb config
     train(use_wandb_config=True)
