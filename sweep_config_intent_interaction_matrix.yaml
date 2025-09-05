@@ -1,37 +1,34 @@
-project: trajairnet-intent-interaction-matrix
-method: bayes
+program: train_sweep.py
+method: random
 metric:
   name: test_ade_loss
   goal: minimize
+
 parameters:
-  # Training parameters (default lr=0.001, epochs=50)
-  lr:
-    values: [0.0005, 0.001, 0.002, 0.005]
-  total_epochs:
-    values: [15, 20, 25]
-  
-  # Intent-specific parameters (default=32, key new feature)
-  intent_embed_dim:
-    values: [16, 32, 48, 64]
-  
-  # GAT parameters that interact with intent matrix (defaults: heads=16, hidden=256, dropout=0.05, alpha=0.2)
-  gat_heads:
-    values: [8, 16, 24, 32]
-  graph_hidden:
-    values: [128, 256, 384, 512]
-  dropout:
-    min: 0.02
-    max: 0.15
-  alpha:
-    min: 0.1
-    max: 0.3
-    
-  # Core feature extraction architecture (defaults: tcn_channel=256, tcn_layers=2)
+  # --- Network params to sweep ---
   tcn_channel_size:
     values: [128, 256, 384]
   tcn_layers:
     values: [1, 2, 3]
-    
-early_terminate:
-  type: hyperband
-  min_iter: 10
+
+  gat_heads:
+    values: [8, 16, 24]
+  graph_hidden:
+    values: [128, 256]
+  dropout:
+    min: 0.05
+    max: 0.15
+  alpha:
+    min: 0.1
+    max: 0.3
+
+  # --- Intent embedding params to sweep ---
+  intent_embed_dim:
+    values: [32, 48, 64]
+
+  # --- Optimization params to sweep ---
+  lr:
+    values: [0.0005, 0.001, 0.005]
+
+# Optional: you can fix total_epochs in Python defaults
+# total_epochs: 20  # leave out to use default
