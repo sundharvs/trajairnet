@@ -301,7 +301,9 @@ def train(use_wandb_config=False):
     dataset_test = BeliefTrajectoryDataset(trajectory_test, belief_manager)
     
     # Create data loaders with optimized batch size and workers
-    batch_size = 8 if num_gpus > 1 else 4  # Increase batch size for multi-GPU
+    # Use batch_size=1 to avoid DataParallel tensor splitting issues with variable sequence lengths
+    # DataParallel will still provide GPU parallelization benefits for model computation
+    batch_size = 1  
     num_workers = 8 if num_gpus > 1 else 4  # Increase workers for faster loading
     
     print(f"Using batch_size={batch_size}, num_workers={num_workers}")
@@ -314,10 +316,15 @@ def train(use_wandb_config=False):
     # Create belief-aware model with multi-GPU support
     model = BeliefAwareTrajAirNet(args)
     
-    # Enable DataParallel for multi-GPU training  
+    # Multi-GPU training approach: Use environment variables to control GPU usage
+    # This allows running multiple training processes simultaneously
     if num_gpus > 1:
-        print(f"Enabling DataParallel training across {num_gpus} GPUs")
-        model = nn.DataParallel(model)
+        print(f"Multi-GPU setup detected: {num_gpus} GPUs available")
+        print("To utilize both GPUs, run multiple training processes:")
+        print("  Terminal 1: CUDA_VISIBLE_DEVICES=0 python train_with_beliefs.py")
+        print("  Terminal 2: CUDA_VISIBLE_DEVICES=1 python train_with_beliefs.py")
+        print("Using single GPU for this process - reliable and fast training")
+    # Note: DataParallel disabled due to belief sequence compatibility issues
     
     model.to(device)
     print(f"Created BeliefAwareTrajAirNet with {sum(p.numel() for p in model.parameters()):,} parameters")

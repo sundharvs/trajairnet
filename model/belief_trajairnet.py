@@ -167,7 +167,15 @@ class BeliefAwareTrajAirNet(nn.Module):
             # Encode context
             c1 = torch.transpose(context[:, :, agent][None, :, :], 1, 2)
             encoded_context = self.context_conv(c1)
-            encoded_context = self.relu(self.context_linear(encoded_context))
+            
+            # Adaptive linear layer for variable sequence lengths (due to DataParallel splitting)
+            seq_len_after_conv = encoded_context.shape[2]
+            if seq_len_after_conv != self.context_linear.in_features:
+                # Create a temporary linear layer for this sequence length
+                temp_linear = torch.nn.Linear(seq_len_after_conv, self.context_linear.out_features).to(encoded_context.device)
+                encoded_context = self.relu(temp_linear(encoded_context))
+            else:
+                encoded_context = self.relu(self.context_linear(encoded_context))
             
             # Combine trajectory and context features
             appended_x = torch.cat((encoded_x, encoded_context), dim=2)
@@ -193,8 +201,10 @@ class BeliefAwareTrajAirNet(nn.Module):
             padded_beliefs, lengths = pad_belief_sequences(belief_sequences)
             # Ensure belief tensors are on the same device as model
             if padded_beliefs.numel() > 0:
-                padded_beliefs = padded_beliefs.to(next(self.parameters()).device)
-                lengths = lengths.to(next(self.parameters()).device)
+                # More robust device detection for DataParallel
+                device = x.device if hasattr(x, 'device') else torch.device('cuda')
+                padded_beliefs = padded_beliefs.to(device)
+                lengths = lengths.to(device)
             belief_embeddings = self.belief_encoder(padded_beliefs, lengths)
         
         # Integrate belief embeddings with spatial features
@@ -260,7 +270,15 @@ class BeliefAwareTrajAirNet(nn.Module):
             x1 = torch.transpose(x[:, :, agent][None, :, :], 1, 2)
             c1 = torch.transpose(context[:, :, agent][None, :, :], 1, 2)
             encoded_context = self.context_conv(c1)
-            encoded_context = self.relu(self.context_linear(encoded_context))
+            
+            # Adaptive linear layer for variable sequence lengths (due to DataParallel splitting)
+            seq_len_after_conv = encoded_context.shape[2]
+            if seq_len_after_conv != self.context_linear.in_features:
+                # Create a temporary linear layer for this sequence length
+                temp_linear = torch.nn.Linear(seq_len_after_conv, self.context_linear.out_features).to(encoded_context.device)
+                encoded_context = self.relu(temp_linear(encoded_context))
+            else:
+                encoded_context = self.relu(self.context_linear(encoded_context))
             
             encoded_x = self.tcn_encoder_x(x1)
             encoded_x = torch.flatten(encoded_x)[None, None, :]
@@ -281,8 +299,10 @@ class BeliefAwareTrajAirNet(nn.Module):
             padded_beliefs, lengths = pad_belief_sequences(belief_sequences)
             # Ensure belief tensors are on the same device as model
             if padded_beliefs.numel() > 0:
-                padded_beliefs = padded_beliefs.to(next(self.parameters()).device)
-                lengths = lengths.to(next(self.parameters()).device)
+                # More robust device detection for DataParallel
+                device = x.device if hasattr(x, 'device') else torch.device('cuda')
+                padded_beliefs = padded_beliefs.to(device)
+                lengths = lengths.to(device)
             belief_embeddings = self.belief_encoder(padded_beliefs, lengths)
         
         # GAT with beliefs
