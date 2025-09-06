@@ -314,7 +314,7 @@ def train(use_wandb_config=False):
     # Create belief-aware model with multi-GPU support
     model = BeliefAwareTrajAirNet(args)
     
-    # Enable DataParallel for multi-GPU training  
+    # Enable DataParallel for multi-GPU training
     if num_gpus > 1:
         print(f"Enabling DataParallel training across {num_gpus} GPUs")
         model = nn.DataParallel(model)
@@ -328,9 +328,7 @@ def train(use_wandb_config=False):
     
     # Optimizer and mixed precision scaler
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    # Temporarily disable mixed precision for debugging
-    use_mixed_precision = False
-    scaler = GradScaler('cuda') if torch.cuda.is_available() and use_mixed_precision else None
+    scaler = GradScaler('cuda') if torch.cuda.is_available() else None
     
     print(f"Mixed precision training: {'Enabled' if scaler else 'Disabled'}")
     
@@ -371,8 +369,6 @@ def train(use_wandb_config=False):
             
             optimizer.zero_grad()
             
-            # Context tensor is already in the correct format from the collate function
-            
             # Mixed precision forward pass - let DataParallel handle the batch splitting
             if scaler:
                 with autocast('cuda'):
@@ -399,9 +395,6 @@ def train(use_wandb_config=False):
             
             # Backward pass with mixed precision
             if scaler:
-                # Ensure loss is not in autocast context before backward
-                if hasattr(loss, 'dtype') and loss.dtype == torch.float16:
-                    loss = loss.float()  # Convert back to float32 for backward
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
