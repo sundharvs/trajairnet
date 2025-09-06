@@ -11,10 +11,6 @@ from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 import re
 
-# Configuration flags - set these to control behavior
-CLEAN_TRANSCRIPTS = False  # Set to False to skip transcript cleaning with GPT
-USE_GPT5 = True  # Set to True to use GPT-5 for belief updating instead of Gemma
-
 # LLM imports (will need to be available in environment)
 try:
     from openai import OpenAI
@@ -28,43 +24,38 @@ from .belief_manager import RadioCall
 
 class LLMBeliefUpdater:
     """
-    LLM-based belief state updater with configurable transcript cleaning
-    and model selection (GPT-5 or Gemma-3).
+    LLM-based belief state updater using GPT-4o for transcript processing
+    and Gemma-3 for belief reasoning.
     """
     
     def __init__(self, openai_api_key: Optional[str] = None, 
-                 gemma_model_path: Optional[str] = None,
-                 clean_transcripts: bool = True,
-                 use_gpt5: bool = False):
+                 gemma_model_path: Optional[str] = None):
         """
         Initialize LLM clients.
         
         Args:
             openai_api_key: OpenAI API key (or use environment variable)
             gemma_model_path: Path to Gemma model file
-            clean_transcripts: Whether to clean transcripts with GPT-4o/GPT-5
-            use_gpt5: If True, use GPT-5 for belief updating. If False, use Gemma-3
         """
         self.gpt_client = None
         self.gemma_client = None
         
-        # Initialize OpenAI client (needed for transcript cleaning and/or GPT-5 belief updating)
-        if HAS_OPENAI and (CLEAN_TRANSCRIPTS or USE_GPT5):
+        # Initialize OpenAI client for transcript processing
+        if HAS_OPENAI:
             try:
                 self.gpt_client = OpenAI(api_key=openai_api_key or os.getenv('OPENAI_API_KEY'))
             except Exception as e:
                 print(f"Warning: Could not initialize OpenAI client: {e}")
         
-        # Initialize Gemma client for belief reasoning (only if not using GPT-5)
-        if not USE_GPT5:
-            try:
-                self.gemma_client = OpenAI(base_url="http://localhost:8080/v1", api_key='-')
-            except Exception as e:
-                print(f"Warning: Could not initialize Gemma client: {e}")
+        # Initialize Gemma client for belief reasoning
+        try:
+            self.gemma_client = OpenAI(base_url="http://localhost:8080/v1", api_key='-')
+        except Exception as e:
+            print(f"Warning: Could not initialize Gemma client: {e}")
     
     def clean_transcript_gpt4o(self, raw_transcript: str) -> str:
         """
-        Use GPT-4o/GPT-5 to clean and standardize radio call transcript.
+        Use GPT-4o to clean and standardize radio call transcript.
         
         Args:
             raw_transcript: Raw ASR output
@@ -72,8 +63,8 @@ class LLMBeliefUpdater:
         Returns:
             Cleaned and standardized transcript
         """
-        if not CLEAN_TRANSCRIPTS or not self.gpt_client:
-            return raw_transcript  # Return as-is if cleaning disabled or no client
+        if not self.gpt_client:
+            return raw_transcript  # Return as-is if no client
         
         system_prompt = """You are an expert in aviation radio communications. Your task is to clean and standardize pilot radio calls from automatic speech recognition (ASR) output.
 
@@ -89,13 +80,14 @@ Return only the cleaned transcript, nothing else."""
         user_prompt = f"Clean this radio call transcript: {raw_transcript}"
         
         try:
-            model = "gpt-5" if USE_GPT5 else "gpt-4o-mini"  # Use GPT-5 or mini for cost efficiency
             response = self.gpt_client.chat.completions.create(
-                model=model,
+                model="gpt-4o-mini",  # Use mini for cost efficiency
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
+                temperature=0.1,
+                max_tokens=200
             )
             
             cleaned_transcript = response.choices[0].message.content.strip()
@@ -123,15 +115,29 @@ Return only the cleaned transcript, nothing else."""
         intent_options = self._format_intent_options()
         previous_belief_str = self._format_previous_belief(previous_belief)
         
-        prompt = f"""You will translate radio communications on the common traffic advisory frequency (CTAF) of Butler county airport, which is untowered. Pilots announce their intentions in natural language over the radio, structured around the traffic pattern. In the closed traffic pattern, pilots take off from a runway, turn on to a crosswind leg, then turn onto a downwind leg, then turn onto a base leg, then turn onto a final leg, and then land on the runway. There are two traffic patterns at this airport, one for runway 8 and one for runway 26.
+        prompt = f"""You are an expert pilot assistant tracking aircraft intent sequences in uncontrolled terminal airspace operations.
 
+CONTEXT: Uncontrolled Terminal Airspace Operations
+At uncontrolled airports (no control tower), pilots self-announce their positions and intentions on the Common Traffic Advisory Frequency (CTAF). This airport has two runways: Runway 8 (heading 080°) and Runway 26 (heading 260°), which are the same physical runway used in opposite directions.
+
+STANDARD TRAFFIC PATTERN STRUCTURE:
+- Upwind: Climbing out after takeoff, aligned with runway centerline
+- Crosswind: 90° turn from upwind, perpendicular to runway
+- Downwind: Parallel to runway, opposite direction of landing
+- Base: 90° turn from downwind, perpendicular to runway on approach side  
+- Final: Aligned with runway centerline for landing
 
 PATTERN OPERATIONS:
 - Standard patterns are LEFT traffic (left turns)
-- Common sequences: takeoff → upwind → crosswind → downwind → base → final → land
-- Touch-and-go: land → immediate takeoff without stopping
+- Pattern altitude typically 1000-1200 feet AGL
+- Common sequences: takeoff→upwind→crosswind→downwind→base→final→land
+- Touch-and-go: land→immediate takeoff without stopping
 
-Your task is to turn each radio call into a sequence of intents.
+
+RUNWAY SELECTION:
+- Pilots choose runway based on wind direction
+- Runway 8: Used when wind favors 080° heading
+- Runway 26: Used when wind favors 260° heading
 
 Available Intent Options:
 {intent_options}
@@ -140,16 +146,14 @@ Previous Belief State: {previous_belief_str}
 
 New Radio Call: "{radio_call.transcript}"
 
-Examples:
-"downwind for touch and go" = downwind_X, base_X, final_X, land_X, takeoff_X
-"going around" = Replace landing with takeoff (e.g., final_26, land_26 → final_26, takeoff_26)
-"touch and go" = Sequence includes both land and immediate takeoff (final_X, land_X, takeoff_X)
-"departing runway 8 for left closed traffic" = takeoff_8, crosswind_8, downwind_8, base_8, final_8, land_8
-"departing the pattern to the north" = depart_north
-"clear of the active" = final_26, land_26 → clear_of_runway_26 or final_8, land_8 → clear_of_runway_8
-
-Output ONLY comma-separated intent names from the options above
-If unclear, insufficient information, or other intent (taxiing, crossing runways etc.), use "other"
+PREDICTION RULES:
+1. Multi-intent calls: "downwind for touch and go" = downwind_X, base_X, final_X, land_X, takeoff_X
+2. Going around: Replace landing with takeoff (e.g., final_26, land_26 → final_26, takeoff_26)
+3. Touch and go: Sequence includes both land and immediate takeoff (final_X, land_X, takeoff_X)
+4. Standard sequences: upwind_X→crosswind_X→downwind_X→base_X→final_X→land_X
+5. Departures: After takeoff, pilots announce direction (depart_north, depart_south, depart_east, depart_west)
+6. Output ONLY comma-separated intent names from the options above
+7. If unclear, insufficient information, or other intent (taxiing, crossing runways etc.), use "other"
 
 Intent sequence:"""
 
@@ -157,6 +161,8 @@ Intent sequence:"""
             response = self.gemma_client.chat.completions.create(
                 model = 'gemma',
                 messages=[{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+                temperature=0.2,
+                max_tokens=100
             )
             
             response_text = response.choices[0].message.content.strip()
@@ -214,75 +220,6 @@ Intent sequence:"""
         
         return valid_intents if valid_intents else ['unknown']
     
-    def update_belief_gpt5(self, radio_call: RadioCall, previous_belief: Optional[BeliefState]) -> BeliefState:
-        """
-        Use GPT-5 to update belief state based on radio call and previous belief.
-        
-        Args:
-            radio_call: Radio communication (with cleaned transcript)
-            previous_belief: Previous belief state
-            
-        Returns:
-            Updated belief state
-        """
-        if not self.gpt_client:
-            raise RuntimeError("OpenAI client not available. Please set OPENAI_API_KEY environment variable.")
-        
-        # Prepare prompt with intent vocabulary and previous belief
-        intent_options = self._format_intent_options()
-        previous_belief_str = self._format_previous_belief(previous_belief)
-        
-        prompt = f"""You will translate radio communications on the common traffic advisory frequency (CTAF) of Butler county airport, which is untowered. Pilots announce their intentions in natural language over the radio, structured around the traffic pattern. In the closed traffic pattern, pilots take off from a runway, turn on to a crosswind leg, then turn onto a downwind leg, then turn onto a base leg, then turn onto a final leg, and then land on the runway. There are two traffic patterns at this airport, one for runway 8 and one for runway 26.
-
-
-PATTERN OPERATIONS:
-- Standard patterns are LEFT traffic (left turns)
-- Common sequences: takeoff → upwind → crosswind → downwind → base → final → land
-- Touch-and-go: land → immediate takeoff without stopping
-
-Your task is to turn each radio call into a sequence of intents.
-
-Available Intent Options:
-{intent_options}
-
-Previous Belief State: {previous_belief_str}
-
-New Radio Call: "{radio_call.transcript}"
-
-Examples:
-"downwind for touch and go" = downwind_X, base_X, final_X, land_X, takeoff_X
-"going around" = Replace landing with takeoff (e.g., final_26, land_26 → final_26, takeoff_26)
-"touch and go" = Sequence includes both land and immediate takeoff (final_X, land_X, takeoff_X)
-"departing runway 8 for left closed traffic" = takeoff_8, crosswind_8, downwind_8, base_8, final_8, land_8
-"departing the pattern to the north" = depart_north
-"clear of the active" = final_26, land_26 → clear_of_runway_26 or final_8, land_8 → clear_of_runway_8
-
-Output ONLY comma-separated intent names from the options above
-If unclear, insufficient information, or other intent (taxiing, crossing runways etc.), use "other"
-
-Intent sequence:"""
-
-        try:
-            response = self.gpt_client.chat.completions.create(
-                model='gpt-5',
-                messages=[
-                    {"role": "system", "content": "You are an expert in aviation traffic pattern analysis."},
-                    {"role": "user", "content": prompt}
-                ],
-            )
-            
-            response_text = response.choices[0].message.content.strip()
-            
-            # Parse the response into intent sequence
-            intent_sequence = self._parse_gemma_response(response_text)
-            
-            belief = BeliefState(intent_sequence, radio_call.timestamp)
-            belief.add_radio_call(radio_call.transcript)
-            
-            return belief
-            
-        except Exception as e:
-            raise RuntimeError(f"GPT-5 belief update failed: {e}")
     
     def update_belief(self, radio_call: RadioCall, previous_belief: Optional[BeliefState]) -> BeliefState:
         """
@@ -295,11 +232,8 @@ Intent sequence:"""
         Returns:
             Updated belief state
         """
-        # Step 1: Clean transcript (if enabled)
-        if CLEAN_TRANSCRIPTS:
-            cleaned_transcript = self.clean_transcript_gpt4o(radio_call.transcript)
-        else:
-            cleaned_transcript = radio_call.transcript
+        # Step 1: Clean transcript with GPT-4o
+        cleaned_transcript = self.clean_transcript_gpt4o(radio_call.transcript)
         
         # Create cleaned radio call
         cleaned_call = RadioCall(
@@ -309,11 +243,8 @@ Intent sequence:"""
             radio_call.raw_audio_path
         )
         
-        # Step 2: Update belief using selected model
-        if USE_GPT5:
-            updated_belief = self.update_belief_gpt5(cleaned_call, previous_belief)
-        else:
-            updated_belief = self.update_belief_gemma(cleaned_call, previous_belief)
+        # Step 2: Update belief with Gemma-3
+        updated_belief = self.update_belief_gemma(cleaned_call, previous_belief)
         
         return updated_belief
 
