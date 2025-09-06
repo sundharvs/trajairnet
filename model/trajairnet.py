@@ -61,7 +61,8 @@ class TrajAirNet(nn.Module):
         encoded_trajectories_y = []
         
         # Embed intent labels for all agents
-        intent_embeds = self.intent_embedding(intent_labels)  # [num_agents, intent_embed_dim]
+        intent_indices = (intent_labels - 1).clamp(0, self.intent_embedding.num_embeddings - 1)
+        intent_embeds = self.intent_embedding(intent_indices)  # [num_agents, intent_embed_dim]
         
         # pass all agents through encoder
 
@@ -128,7 +129,8 @@ class TrajAirNet(nn.Module):
         encoded_appended_trajectories_x = []
         
         # Embed intent labels for all agents
-        intent_embeds = self.intent_embedding(intent_labels)  # [num_agents, intent_embed_dim]
+        intent_indices = (intent_labels - 1).clamp(0, self.intent_embedding.num_embeddings - 1)
+        intent_embeds = self.intent_embedding(intent_indices)  # [num_agents, intent_embed_dim]
         
         # pass all agents through encoder
         for agent in range(x.shape[2]):
