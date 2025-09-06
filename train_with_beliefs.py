@@ -11,6 +11,8 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
 from torch import optim
+from torch import nn
+from torch.amp import GradScaler, autocast
 import pandas as pd
 from typing import List, Optional, Tuple
 import numpy as np
@@ -140,9 +142,6 @@ def create_belief_manager_from_transcripts(transcript_path: str) -> BeliefManage
     Returns:
         Populated BeliefManager
     """
-    if not os.path.exists(transcript_path):
-        print(f"Warning: Transcript file {transcript_path} not found. Using empty belief manager.")
-        return BeliefManager("belief_cache")
     
     # Create pickle cache filename based on transcript path
     cache_filename = transcript_path.replace('.csv', '_processed_beliefs.pkl')
@@ -274,9 +273,14 @@ def train(use_wandb_config=False):
                 if hasattr(args, key):
                     setattr(args, key, value)
     
-    # Device selection
+    # Device selection and GPU information
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
     print(f"Using device: {device}")
+    print(f"Number of available GPUs: {num_gpus}")
+    if num_gpus > 1:
+        print(f"GPU 0: {torch.cuda.get_device_name(0)}")
+        print(f"GPU 1: {torch.cuda.get_device_name(1)}")
     
     # Load trajectory data
     datapath = args.dataset_folder + args.dataset_name + "/processed_data/"
@@ -296,14 +300,25 @@ def train(use_wandb_config=False):
     dataset_train = BeliefTrajectoryDataset(trajectory_train, belief_manager)
     dataset_test = BeliefTrajectoryDataset(trajectory_test, belief_manager)
     
-    # Create data loaders with custom collate function
-    loader_train = DataLoader(dataset_train, batch_size=1, num_workers=4, 
+    # Create data loaders with optimized batch size and workers
+    batch_size = 8 if num_gpus > 1 else 4  # Increase batch size for multi-GPU
+    num_workers = 8 if num_gpus > 1 else 4  # Increase workers for faster loading
+    
+    print(f"Using batch_size={batch_size}, num_workers={num_workers}")
+    
+    loader_train = DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, 
                             shuffle=True, collate_fn=belief_collate)
-    loader_test = DataLoader(dataset_test, batch_size=1, num_workers=4,
+    loader_test = DataLoader(dataset_test, batch_size=batch_size, num_workers=num_workers,
                            shuffle=True, collate_fn=belief_collate)
     
-    # Create belief-aware model
+    # Create belief-aware model with multi-GPU support
     model = BeliefAwareTrajAirNet(args)
+    
+    # Enable DataParallel for multi-GPU training
+    if num_gpus > 1:
+        print(f"Enabling DataParallel training across {num_gpus} GPUs")
+        model = nn.DataParallel(model)
+    
     model.to(device)
     print(f"Created BeliefAwareTrajAirNet with {sum(p.numel() for p in model.parameters()):,} parameters")
     
@@ -311,8 +326,11 @@ def train(use_wandb_config=False):
     if not args.disable_wandb:
         wandb.watch(model, log="all", log_freq=100)
     
-    # Optimizer
+    # Optimizer and mixed precision scaler
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    scaler = GradScaler('cuda') if torch.cuda.is_available() else None
+    
+    print(f"Mixed precision training: {'Enabled' if scaler else 'Disabled'}")
     
     num_batches = len(loader_train)
     print("Starting Training....")
@@ -324,7 +342,7 @@ def train(use_wandb_config=False):
         tot_batch_count = 0
         tot_loss = 0
         
-        for batch in tqdm(loader_train):
+        for batch in tqdm(loader_train, desc=f"Epoch {epoch}"):
             batch_count += 1
             tot_batch_count += 1
             batch = [tensor.to(device) for tensor in batch]
@@ -332,29 +350,39 @@ def train(use_wandb_config=False):
             # Unpack batch with belief data
             obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, timestamp, tail, seq_start_end, belief_padded, belief_lengths = batch
             
-            num_agents = obs_traj.shape[1]
-            pred_traj = torch.transpose(pred_traj, 1, 2)
-            adj = torch.ones((num_agents, num_agents))
-            
-            # Convert padded belief data back to sequences
+            # Process belief data - flatten all agent beliefs across the batch
             belief_sequences = []
             start_idx = 0
-            for agent_idx in range(num_agents):
-                length = belief_lengths[start_idx].item()
-                seq = belief_padded[start_idx][:length].tolist()
-                belief_sequences.append(seq)
-                start_idx += 1
+            for agent_idx in range(len(belief_lengths)):
+                if belief_lengths[agent_idx] > 0:
+                    length = belief_lengths[agent_idx].item()
+                    seq = belief_padded[agent_idx][:length].tolist()
+                    belief_sequences.append(seq)
+                else:
+                    belief_sequences.append([16])  # Default 'other' intent
             
-            agent_belief_lengths = belief_lengths[:num_agents]
+            # Simplified approach: process the full batch through DataParallel
+            # DataParallel will handle splitting across GPUs automatically
+            num_agents = obs_traj.shape[1]  # agents per sequence
+            pred_traj = torch.transpose(pred_traj, 1, 2)  # Prepare pred_traj
+            adj = torch.ones((num_agents, num_agents)).to(device)
             
             optimizer.zero_grad()
             
-            # Forward pass with beliefs
-            recon_y, m, var = model(
-                torch.transpose(obs_traj, 1, 2), pred_traj, adj[0],
-                torch.transpose(context, 1, 2), belief_sequences, agent_belief_lengths
-            )
+            # Mixed precision forward pass - let DataParallel handle the batch splitting
+            if scaler:
+                with autocast('cuda'):
+                    recon_y, m, var = model(
+                        torch.transpose(obs_traj, 1, 2), pred_traj, adj[0],
+                        torch.transpose(context, 1, 2), belief_sequences, belief_lengths
+                    )
+            else:
+                recon_y, m, var = model(
+                    torch.transpose(obs_traj, 1, 2), pred_traj, adj[0],
+                    torch.transpose(context, 1, 2), belief_sequences, belief_lengths
+                )
             
+            # Calculate loss
             loss = 0
             for agent in range(num_agents):
                 loss += loss_func(
@@ -363,25 +391,36 @@ def train(use_wandb_config=False):
                     m[agent], var[agent]
                 )
             
-            loss_batch += loss
             tot_loss += loss.item()
             
-            if batch_count > 8:
-                loss_batch.backward()
+            # Backward pass with mixed precision
+            if scaler:
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
                 optimizer.step()
-                loss_batch = 0
-                batch_count = 0
         
         epoch_loss = tot_loss / tot_batch_count
         print("EPOCH:", epoch, "Train Loss:", epoch_loss)
         
         # Log training metrics to wandb
         if not args.disable_wandb:
-            wandb.log({
+            metrics = {
                 "epoch": epoch,
                 "train_loss": epoch_loss,
-                "learning_rate": optimizer.param_groups[0]['lr']
-            })
+                "learning_rate": optimizer.param_groups[0]['lr'],
+                "gpu_count": num_gpus
+            }
+            
+            # Add GPU memory usage if available
+            if torch.cuda.is_available():
+                for i in range(min(2, torch.cuda.device_count())):
+                    metrics[f"gpu_{i}_memory_allocated"] = torch.cuda.memory_allocated(i) / 1024**3  # GB
+                    metrics[f"gpu_{i}_memory_reserved"] = torch.cuda.memory_reserved(i) / 1024**3  # GB
+            
+            wandb.log(metrics)
         
         # Save model
         if args.save_model:
@@ -406,11 +445,12 @@ def train(use_wandb_config=False):
             
             # Log test metrics to wandb
             if not args.disable_wandb:
-                wandb.log({
+                test_metrics = {
                     "epoch": epoch,
                     "test_ade_loss": test_ade_loss,
                     "test_fde_loss": test_fde_loss
-                })
+                }
+                wandb.log(test_metrics)
 
 
 if __name__ == '__main__':

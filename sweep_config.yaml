@@ -16,5 +16,5 @@ parameters:
     values: [5, 10, 20, 30]
 early_terminate:
   type: hyperband
-  min_iter: 5
+  min_iter: 2
   eta: 2
