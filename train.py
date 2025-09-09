@@ -74,7 +74,7 @@ def train():
 
     ##Select device
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda')
 
     ##Load test and train data
     datapath = args.dataset_folder + args.dataset_name + "/processed_data/"
@@ -85,15 +85,40 @@ def train():
     print("Loading Test Data from ",datapath + "test")
     dataset_test = TrajectoryDataset(datapath + "test", obs_len=args.obs, pred_len=args.preds, step=args.preds_step, delim=args.delim)
 
-    loader_train = DataLoader(dataset_train,batch_size=1,num_workers=4,shuffle=True,collate_fn=seq_collate)
-    loader_test = DataLoader(dataset_test,batch_size=1,num_workers=4,shuffle=True,collate_fn=seq_collate)
+    loader_train = DataLoader(dataset_train,batch_size=1,num_workers=8,shuffle=True,collate_fn=seq_collate)
+    loader_test = DataLoader(dataset_test,batch_size=1,num_workers=8,shuffle=False,collate_fn=seq_collate)
 
     model = TrajAirNet(args)
     model.to(device)
 
-    ##Resume
-    # checkpoint = torch.load('model_11.pt',map_location=torch.device('cpu'))
-    # model.load_state_dict(checkpoint['model_state_dict'])
+    ##Load and freeze TCN and wind CNN weights from saved_models/model_7daysJune_50.pt
+    checkpoint = torch.load('saved_models/model_7daysJune_50.pt', map_location=device)
+    checkpoint_state = checkpoint['model_state_dict']
+    
+    # Selectively load TCN encoder weights
+    tcn_x_keys = [k for k in checkpoint_state.keys() if k.startswith('tcn_encoder_x.')]
+    tcn_y_keys = [k for k in checkpoint_state.keys() if k.startswith('tcn_encoder_y.')]
+    wind_cnn_keys = [k for k in checkpoint_state.keys() if k.startswith('context_conv.')]
+    
+    # Load the specific weights
+    current_state = model.state_dict()
+    for key in tcn_x_keys + tcn_y_keys + wind_cnn_keys:
+        if key in current_state:
+            current_state[key] = checkpoint_state[key]
+    
+    model.load_state_dict(current_state)
+    
+    # Freeze TCN encoder weights
+    for param in model.tcn_encoder_x.parameters():
+        param.requires_grad = False
+    for param in model.tcn_encoder_y.parameters():
+        param.requires_grad = False
+    
+    # Freeze wind CNN weights
+    for param in model.context_conv.parameters():
+        param.requires_grad = False
+    
+    print("Loaded and frozen TCN and wind CNN weights from checkpoint")
 
     optimizer = optim.Adam(model.parameters(),lr=args.lr)
 
@@ -144,7 +169,7 @@ def train():
 
         if args.save_model:  
             loss = avg_train_loss
-            model_path = os.getcwd() + args.model_pth + "model_" + args.dataset_name + "_" + str(epoch) + ".pt"
+            model_path = os.getcwd() + args.model_pth + "model_" + args.dataset_name + "_attention_head_" + str(epoch) + ".pt"
             print("Saving model at",model_path)
             torch.save({
                 'epoch': epoch,
