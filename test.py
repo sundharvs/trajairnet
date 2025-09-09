@@ -77,6 +77,11 @@ def test(model,loader_test,device):
     tot_ade_loss = 0
     tot_fde_loss = 0
     tot_batch = 0
+    total_ade = 0
+    total_fde = 0
+
+    all_ade = []
+    all_fde = []
     
     loss_records = []
     
@@ -104,7 +109,11 @@ def test(model,loader_test,device):
                 recon_pred = np.squeeze(recon_y_all[agent].detach().cpu().numpy()).transpose()
                 ade_loss += ade(recon_pred, pred_traj)
                 fde_loss += fde((recon_pred), (pred_traj))
-           
+            
+            ade_loss = ade_loss / num_agents
+            fde_loss = fde_loss / num_agents
+            all_ade.append(ade_loss)
+            all_fde.append(fde_loss)
             
             ade_total_loss = ade_loss/num_agents
             fde_total_loss = fde_loss/num_agents
@@ -117,13 +126,25 @@ def test(model,loader_test,device):
         
         loss_records.append((batch_idx, best_ade_loss, best_fde_loss))
         
+    average_ade = total_ade / tot_batch
+    average_fde = total_fde / tot_batch
+
+    all_ade_mean = np.mean(all_ade)
+    all_ade_var = np.var(all_ade)
+    all_ade_std = np.std(all_ade)
+    all_fde_mean = np.mean(all_fde)
+    all_fde_var = np.var(all_fde)
+    all_fde_std = np.std(all_fde)    
+
     worst_cases = sorted(loss_records, key=lambda x: x[1], reverse=True)[:10]  # Sorting by ADE (change x[1] to x[2] for FDE)
 
     print("\nTop 10 Worst Cases (By ADE):")
     for idx, ade_loss, fde_loss in worst_cases:
         print(f"Batch Index: {idx}, ADE: {ade_loss:.4f}, FDE: {fde_loss:.4f}")
 
-    return tot_ade_loss/(tot_batch),tot_fde_loss/(tot_batch)
+    return (average_ade, average_fde,
+            all_ade_mean, all_ade_var, all_ade_std,
+            all_fde_mean, all_fde_var, all_fde_std)
 
 
 if __name__=='__main__':
