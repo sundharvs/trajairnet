@@ -192,10 +192,11 @@ def train():
             with sync_ctx():
                 with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
                     recon_y, m, var = model(torch.transpose(obs_traj, 1, 2),
-                                            pred_traj, adj,
+                                            pred_traj, adj[0],
                                             torch.transpose(context, 1, 2),
                                             intent_labels, time_delta_features)
-                    loss = 0
+                with torch.amp.autocast(device_type="cuda", dtype=torch.float32):
+                    loss = 0.0
                     for agent in range(num_agents):
                         loss += loss_func(recon_y[agent],
                                           torch.transpose(pred_traj[:, :, agent], 0, 1).unsqueeze(0),
