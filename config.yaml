@@ -1,0 +1,98 @@
+# TrajAirNet Configuration File
+# This file centralizes all configuration parameters for the TrajAirNet project
+# Note: Testing scripts will continue to use argparse for flexibility
+
+# Dataset Configuration
+dataset:
+  folder: "/home/ssangeetha3/git/ctaf-intent-inference/dataset/"
+  name: "7daysJune"
+  obs_len: 11
+  pred_len: 120
+  pred_step: 10
+  skip: 1
+  delim: " "
+
+# Network Architecture Parameters
+network:
+  # Input parameters
+  input_channels: 3
+  
+  # TCN Encoder parameters
+  tcn_channel_size: 256
+  tcn_layers: 2
+  tcn_kernels: 4
+  
+  # Context CNN parameters
+  num_context_input_c: 2
+  num_context_output_c: 7
+  cnn_kernels: 2
+  
+  # GAT parameters
+  gat_heads: 16
+  graph_hidden: 256
+  dropout: 0.05
+  alpha: 0.2
+  
+  # CVAE parameters
+  cvae_hidden: 128
+  cvae_channel_size: 128
+  cvae_layers: 2
+  mlp_layer: 32
+
+# Intent Integration Parameters
+intent:
+  embed_dim: 32
+  num_classes: 16
+  csv_path: "../main_pipeline/2_categorize_radio_calls/7daysJune_FIXED_DEBUG_with_goals.csv"
+  time_delta_threshold_minutes: 10  # Return "Unknown" intent if time delta > threshold
+  use_time_delta_feature: false  # Enable/disable time delta as neural network input feature
+  
+# Training Parameters
+training:
+  lr: 0.0008
+  total_epochs: 50
+  evaluate: true
+  save_model: true
+  model_path: "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet/saved_models/"
+  force_single_gpu: false
+
+# Wandb Configuration
+wandb:
+  use_wandb: false
+  project: "trajairnet-intent-attention-head"
+  entity: null
+
+# Belief Integration (for overfit test)
+belief:
+  embed_dim: 64
+  vocab_size: 16000  # Will be set by TOTAL_VOCAB_SIZE constant
+  integration_mode: "concatenate"
+  transcripts_path: "../main_pipeline/2_categorize_radio_calls/radio_calls_with_goals_7daysJune.csv"
+
+
+# Batch Configuration
+batch:
+  size: 1  # Training batch size
+  num_workers: 8
+  shuffle_train: true
+  shuffle_test: false
+
+# DataLoader Configuration  
+dataloader:
+  train_batch_size: 1
+  test_batch_size: 1
+  train_num_workers: 4
+  test_num_workers: 4
+
+# Device Configuration
+device:
+  use_cuda: true
+  force_cpu: false
+  
+# File Paths
+paths:
+  saved_models: "saved_models/"
+  pretrained_model: "saved_models/model_7daysJune_50.pt"
+
+# Note: Wandb sweep parameters will override these defaults automatically
+# when wandb.config is merged with the base configuration

@@ -10,7 +10,7 @@ import numpy as np
 from scipy.spatial import distance_matrix
 import random
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 ##Intent Lookup class
@@ -21,17 +21,20 @@ class IntentLookup:
     Loads intent-labeled radio calls from main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv
     """
     
-    def __init__(self, intent_csv_path=None):
+    def __init__(self, intent_csv_path=None, time_delta_threshold_minutes=None):
         """
         Initialize IntentLookup with radio call data.
         
         Args:
             intent_csv_path (str): Path to transcripts_with_goals.csv file
+            time_delta_threshold_minutes (float): Time threshold in minutes. If the time delta
+                between radio call and prediction timestamp exceeds this, return intent 15 (Unknown)
         """
         if intent_csv_path is None:
             # Default path relative to trajairnet directory
-            intent_csv_path = "/home/ssangeetha3/git/ctaf-intent-inference/main_pipeline/2_categorize_radio_calls/transcripts_with_goals.csv"
+            intent_csv_path = "/home/ssangeetha3/git/ctaf-intent-inference/main_pipeline/2_categorize_radio_calls/7daysJune_FIXED_DEBUG_with_goals.csv"
         
+        self.time_delta_threshold_minutes = time_delta_threshold_minutes
         self.intent_data = {}  # {tail_number: [(timestamp, intent_category), ...]}
         self._load_intent_data(intent_csv_path)
     
@@ -46,13 +49,18 @@ class IntentLookup:
                 if tail == 'Unknown' or pd.isna(tail):
                     continue
                     
-                # Parse timestamp
+                # Parse timestamp - treat as UTC (consistent with main_pipeline)
                 try:
                     timestamp_str = row['start_time']
-                    timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00')).timestamp()
+                    # Only use fromisoformat if there's explicit timezone info
+                    if 'Z' in timestamp_str or '+' in timestamp_str or 'T' in timestamp_str:
+                        timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00')).timestamp()
+                    else:
+                        # No timezone info, treat as UTC like main_pipeline does
+                        timestamp = datetime.strptime(timestamp_str.split('.')[0], '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc).timestamp()
                 except:
-                    # Try parsing without timezone info
-                    timestamp = datetime.fromisoformat(timestamp_str.split('.')[0]).timestamp()
+                    # Fallback: parse as UTC to match trajectory timestamps
+                    timestamp = datetime.strptime(timestamp_str.split('.')[0], '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc).timestamp()
                 
                 intent_category = int(row['Goal Category']) if not pd.isna(row['Goal Category']) else 15
                 
@@ -79,16 +87,18 @@ class IntentLookup:
         except:
             return 'Unknown'
     
-    def get_most_recent_intent(self, tail_number, sequence_end_timestamp):
+    def get_most_recent_intent_with_time_delta(self, tail_number, sequence_end_timestamp):
         """
-        Get the most recent intent category for an aircraft before a given timestamp.
+        Get the most recent intent category and time delta for an aircraft before a given timestamp.
         
         Args:
             tail_number (float or str): Aircraft tail number (numeric base-36 or string)
             sequence_end_timestamp (float): Unix timestamp of sequence end
             
         Returns:
-            int: Intent category (1-16), defaults to 15 if no radio call found
+            tuple: (intent_category, time_delta_seconds)
+                - intent_category (int): Intent category (1-16), defaults to 15 if no radio call found or time delta exceeds threshold
+                - time_delta_seconds (float): Time delta in seconds, or threshold value for missing/stale data
         """
         # Convert numeric tail to string format
         if isinstance(tail_number, (int, float)):
@@ -96,20 +106,53 @@ class IntentLookup:
         else:
             tail_str = tail_number
         
+        # Calculate threshold in seconds for max time delta
+        threshold_seconds = (self.time_delta_threshold_minutes * 60.0 
+                           if self.time_delta_threshold_minutes is not None else float('inf'))
+        
         if tail_str not in self.intent_data:
-            return 15  # Default: "Insufficient information"
+            return 15, threshold_seconds  # No data found - return max time delta
         
         # Find most recent radio call before sequence end
         radio_calls = self.intent_data[tail_str]
         most_recent_intent = 15  # Default
+        most_recent_timestamp = None
         
         for timestamp, intent in radio_calls:
             if timestamp <= sequence_end_timestamp:
                 most_recent_intent = intent
+                most_recent_timestamp = timestamp
             else:
                 break  # Radio calls are sorted by timestamp
         
-        return most_recent_intent
+        # Calculate time delta
+        if most_recent_timestamp is None:
+            # No radio call found before sequence end
+            return 15, threshold_seconds
+        
+        time_delta_seconds = sequence_end_timestamp - most_recent_timestamp
+        
+        # Check time delta threshold if configured
+        if (self.time_delta_threshold_minutes is not None and 
+            time_delta_seconds > threshold_seconds):
+            return 15, threshold_seconds  # Return "Unknown" with max time delta if exceeds threshold
+        
+        return most_recent_intent, time_delta_seconds
+    
+    def get_most_recent_intent(self, tail_number, sequence_end_timestamp):
+        """
+        Get the most recent intent category for an aircraft before a given timestamp.
+        Backward compatibility method - returns only intent.
+        
+        Args:
+            tail_number (float or str): Aircraft tail number (numeric base-36 or string)
+            sequence_end_timestamp (float): Unix timestamp of sequence end
+            
+        Returns:
+            int: Intent category (1-16), defaults to 15 if no radio call found or time delta exceeds threshold
+        """
+        intent, _ = self.get_most_recent_intent_with_time_delta(tail_number, sequence_end_timestamp)
+        return intent
 
 
 ##Dataloader class
@@ -120,7 +163,7 @@ class TrajectoryDataset(Dataset):
     
     def __init__(
         self, data_dir, obs_len=11, pred_len=120, skip=1,step=10,
-        min_agent=0, delim=' ', intent_csv_path=None):
+        min_agent=0, delim=' ', intent_csv_path=None, time_delta_threshold_minutes=None):
         """
         Args:
         - data_dir: Directory containing dataset files in the format
@@ -132,11 +175,12 @@ class TrajectoryDataset(Dataset):
         - step: Subsampling for pred
         - delim: Delimiter in the dataset files
         - intent_csv_path: Path to transcripts_with_goals.csv for intent lookup
+        - time_delta_threshold_minutes: Time threshold for intent lookup
         """
         super(TrajectoryDataset, self).__init__()
         
         # Initialize intent lookup
-        self.intent_lookup = IntentLookup(intent_csv_path)
+        self.intent_lookup = IntentLookup(intent_csv_path, time_delta_threshold_minutes)
 
         self.max_agents_in_frame = 0
         self.data_dir = data_dir
@@ -157,6 +201,7 @@ class TrajectoryDataset(Dataset):
         timestamp_list = []
         tail_list = []
         intent_list = []  # New list to store intent labels
+        time_delta_list = []  # New list to store time delta values
         
         self.seq_file_map = []  # New list to store file indices
         
@@ -186,6 +231,7 @@ class TrajectoryDataset(Dataset):
                 curr_timestamp = np.zeros((len(agents_in_curr_seq), 1, self.seq_final_len))
                 curr_tail = np.zeros((len(agents_in_curr_seq), 1, self.seq_final_len))
                 curr_intent = np.full((len(agents_in_curr_seq),), 15)  # Default to "Insufficient information"
+                curr_time_delta = np.zeros((len(agents_in_curr_seq),))  # Default to 0 time delta
                 num_agents_considered = 0
                 for _, agent_id in enumerate(agents_in_curr_seq):
                     curr_agent_seq = curr_seq_data[curr_seq_data[:, 1] ==
@@ -203,10 +249,10 @@ class TrajectoryDataset(Dataset):
                     timestamp = curr_agent_seq[5,:]
                     tail = curr_agent_seq[6,:]
                     
-                    # Get intent label for this agent at sequence end timestamp
+                    # Get intent label and time delta for this agent at sequence end timestamp
                     sequence_end_timestamp = timestamp[-1]  # Last timestamp in sequence
                     agent_tail_number = tail[0]  # Tail number (same for entire sequence)
-                    intent_label = self.intent_lookup.get_most_recent_intent(agent_tail_number, sequence_end_timestamp)
+                    intent_label, time_delta_seconds = self.intent_lookup.get_most_recent_intent_with_time_delta(agent_tail_number, sequence_end_timestamp)
                     
                     # Make coordinates relative
                     rel_curr_agent_seq = np.zeros(curr_agent_seq.shape)
@@ -225,6 +271,7 @@ class TrajectoryDataset(Dataset):
                     curr_timestamp[_idx,:,pad_front:pad_end] = timestamp
                     curr_tail[_idx,:,pad_front:pad_end] = tail
                     curr_intent[_idx] = intent_label  # Store intent label for this agent
+                    curr_time_delta[_idx] = time_delta_seconds  # Store time delta for this agent
                     num_agents_considered += 1
             
 
@@ -236,6 +283,7 @@ class TrajectoryDataset(Dataset):
                     timestamp_list.append(curr_timestamp[:num_agents_considered])
                     tail_list.append(curr_tail[:num_agents_considered])
                     intent_list.append(curr_intent[:num_agents_considered])
+                    time_delta_list.append(curr_time_delta[:num_agents_considered])
                     self.seq_file_map.append(path_idx)
 
         self.num_seq = len(seq_list)
@@ -245,6 +293,7 @@ class TrajectoryDataset(Dataset):
         timestamp_list = np.concatenate(timestamp_list, axis=0)
         tail_list = np.concatenate(tail_list, axis=0)
         intent_list = np.concatenate(intent_list, axis=0)
+        time_delta_list = np.concatenate(time_delta_list, axis=0)
 
         # Convert numpy -> Torch Tensor
         self.obs_traj = torch.from_numpy(
@@ -257,6 +306,11 @@ class TrajectoryDataset(Dataset):
             tail_list[:,:,:self.obs_len]).type(torch.double)
         self.intent_labels = torch.from_numpy(
             intent_list).type(torch.long)  # Intent labels as long integers
+        
+        # Normalize time delta using log transform
+        normalized_time_delta = np.array([math.log(1 + td) for td in time_delta_list])
+        self.time_delta_features = torch.from_numpy(
+            normalized_time_delta).type(torch.float)  # Normalized time delta features
         self.pred_traj = torch.from_numpy(
             seq_list[:, :, self.obs_len:]).type(torch.float)
         self.obs_traj_rel = torch.from_numpy(
@@ -286,6 +340,7 @@ class TrajectoryDataset(Dataset):
             self.obs_traj[start:end, :], self.pred_traj[start:end, :],
             self.obs_traj_rel[start:end, :], self.pred_traj_rel[start:end, :], self.obs_context[start:end, :],
             self.intent_labels[start:end],  # Add intent labels
+            self.time_delta_features[start:end],  # Add time delta features
             self.obs_timestamp[start:end, :],
             self.obs_tail[start:end, :]
         ]
@@ -358,7 +413,7 @@ def acc_to_abs(acc,obs,delta=1):
     
 
 def seq_collate(data):
-    (obs_seq_list, pred_seq_list, obs_seq_rel_list, pred_seq_rel_list,context_list,intent_list,timestamp_list,tail_list) = zip(*data)
+    (obs_seq_list, pred_seq_list, obs_seq_rel_list, pred_seq_rel_list,context_list,intent_list,time_delta_list,timestamp_list,tail_list) = zip(*data)
 
     _len = [len(seq) for seq in obs_seq_list]
     cum_start_idx = [0] + np.cumsum(_len).tolist()
@@ -373,12 +428,13 @@ def seq_collate(data):
     pred_traj_rel = torch.cat(pred_seq_rel_list, dim=0).permute(2, 0, 1)
     context = torch.cat(context_list, dim=0 ).permute(2,0,1)
     intent_labels = torch.cat(intent_list, dim=0)  # Intent labels: [total_agents]
+    time_delta_features = torch.cat(time_delta_list, dim=0)  # Time delta features: [total_agents]
     timestamp = torch.cat(timestamp_list, dim=0 ).permute(2,0,1)
     tail = torch.cat(tail_list, dim=0 ).permute(2,0,1)
     seq_start_end = torch.LongTensor(seq_start_end)
 
     out = [
-        obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, intent_labels, seq_start_end
+        obs_traj, pred_traj, obs_traj_rel, pred_traj_rel, context, intent_labels, time_delta_features, seq_start_end
     ]
     return tuple(out)
 

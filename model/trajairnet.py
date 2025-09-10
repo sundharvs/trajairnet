@@ -25,8 +25,12 @@ class TrajAirNet(nn.Module):
         num_intent_classes = getattr(args, 'num_intent_classes', 16)  # Default 16 classes
         
         graph_hidden = args.graph_hidden
-        gat_in = n_classes*args.obs+args.num_context_output_c+intent_embed_dim  # Add intent embedding dim
-        gat_out = n_classes*args.obs+args.num_context_output_c+intent_embed_dim
+        # Check if time delta feature is enabled
+        use_time_delta = getattr(args, 'use_time_delta_feature', False)
+        time_delta_dim = 1 if use_time_delta else 0
+        
+        gat_in = n_classes*args.obs+args.num_context_output_c+intent_embed_dim+time_delta_dim  # Add intent embedding dim and time delta
+        gat_out = n_classes*args.obs+args.num_context_output_c+intent_embed_dim+time_delta_dim
         n_heads = args.gat_heads 
         alpha = args.alpha
         
@@ -47,6 +51,7 @@ class TrajAirNet(nn.Module):
         self.context_conv = nn.Conv1d(in_channels=args.num_context_input_c, out_channels=1, kernel_size=args.cnn_kernels)
         self.context_linear = nn.Linear(args.obs-1,args.num_context_output_c)
         self.relu = nn.ReLU()
+        self.use_time_delta = use_time_delta
         self.init_weights()
 
     def init_weights(self):
@@ -54,7 +59,7 @@ class TrajAirNet(nn.Module):
         self.context_linear.weight.data.normal_(0, 0.05)
         self.context_conv.weight.data.normal_(0, 0.1)
         
-    def forward(self, x, y, adj, context, intent_labels, sort=False):        
+    def forward(self, x, y, adj, context, intent_labels, time_delta_features=None, sort=False):        
         
         encoded_trajectories_x = []
         encoded_appended_trajectories_x = []
@@ -80,7 +85,13 @@ class TrajAirNet(nn.Module):
             # Add intent embedding for this agent
             intent_embed = intent_embeds[agent].unsqueeze(0).unsqueeze(0)  # [1, 1, intent_embed_dim]
             
-            appended_x = torch.cat((encoded_x, encoded_context, intent_embed), dim=2)
+            # Concatenate features: trajectory + context + intent + time_delta (if enabled)
+            features_to_concat = [encoded_x, encoded_context, intent_embed]
+            if self.use_time_delta and time_delta_features is not None:
+                time_delta_feature = time_delta_features[agent].unsqueeze(0).unsqueeze(0).unsqueeze(0)  # [1, 1, 1]
+                features_to_concat.append(time_delta_feature)
+            
+            appended_x = torch.cat(features_to_concat, dim=2)
             encoded_appended_trajectories_x.append(appended_x)
             
             y1 = torch.transpose(y[:,:, agent][None, :, :], 1, 2)
@@ -122,7 +133,7 @@ class TrajAirNet(nn.Module):
         return recon_y,m,var
     
     
-    def inference(self,x,z,adj,context,intent_labels):
+    def inference(self,x,z,adj,context,intent_labels,time_delta_features=None):
      
 
         encoded_trajectories_x = []
@@ -145,7 +156,14 @@ class TrajAirNet(nn.Module):
             
             # Add intent embedding for this agent
             intent_embed = intent_embeds[agent].unsqueeze(0).unsqueeze(0)  # [1, 1, intent_embed_dim]
-            appended_x = torch.cat((encoded_x, encoded_context, intent_embed), dim=2)
+            
+            # Concatenate features: trajectory + context + intent + time_delta (if enabled)
+            features_to_concat = [encoded_x, encoded_context, intent_embed]
+            if self.use_time_delta and time_delta_features is not None:
+                time_delta_feature = time_delta_features[agent].unsqueeze(0).unsqueeze(0).unsqueeze(0)  # [1, 1, 1]
+                features_to_concat.append(time_delta_feature)
+            
+            appended_x = torch.cat(features_to_concat, dim=2)
 
             encoded_appended_trajectories_x.append(appended_x)
 
