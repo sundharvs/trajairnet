@@ -41,8 +41,9 @@ parameters:
 
 command:
   - ${env}
-  - torchrun
-  - --nproc_per_node=1
+  - bash
+  - -c
+  - 'torchrun --nproc_per_node=1 --rdzv-endpoint=localhost:$(shuf -i 20000-29999 -n 1) "$0" "$@"'
   - ${program}
   - ${args}
 
