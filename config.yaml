@@ -54,11 +54,14 @@ training:
   evaluate: true
   save_model: true
   model_path: "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet/saved_models/"
-  force_single_gpu: false
+  force_single_gpu: true
+  scheduler_type: "none"
+  warmup_epochs: 0
+  grad_accum_steps: 8
 
 # Wandb Configuration
 wandb:
-  use_wandb: false
+  use_wandb: true
   project: "trajairnet-intent-attention-head"
   entity: null
 

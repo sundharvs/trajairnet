@@ -1,13 +1,25 @@
-program: train_sweep.py
+program: train.py
 project: trajairnet-intent-attention-head
 method: bayes
 metric:
   name: test_ade_loss
   goal: minimize
 parameters:
-  # Training parameters (default lr=0.001, epochs=50)
+  # Force single GPU for sweep runs
+  force_single_gpu:
+    value: true
+    
   lr:
-    values: [0.0005, 0.001, 0.002, 0.005]
+    # Sweep over a log-uniform distribution, which is better for learning rates
+    distribution: log_uniform_values
+    min: 0.0001
+    max: 0.01
+
+  scheduler_type:
+    values: ['cosine', 'plateau'] # Let wandb test which scheduler is better
+  warmup_epochs:
+    values: [1, 2, 3] # Add a short warmup period for stability
+  
   total_epochs:
     values: [15, 20, 25]
   
@@ -26,13 +38,14 @@ parameters:
   alpha:
     min: 0.1
     max: 0.3
-    
-  # Core feature extraction architecture (defaults: tcn_channel=256, tcn_layers=2)
-  tcn_channel_size:
-    values: [128, 256, 384]
-  tcn_layers:
-    values: [1, 2, 3]
-    
+
+command:
+  - ${env}
+  - torchrun
+  - --nproc_per_node=1
+  - ${program}
+  - ${args}
+
 early_terminate:
   type: hyperband
-  min_iter: 10
+  min_iter: 2

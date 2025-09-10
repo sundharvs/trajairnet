@@ -84,6 +84,10 @@ class ConfigLoader:
             'evaluate': self.config['training']['evaluate'],
             'save_model': self.config['training']['save_model'],
             'model_pth': self.config['training']['model_path'],
+            'scheduler_type': self.config['training']['scheduler_type'],
+            'warmup_epochs': self.config['training']['warmup_epochs'],
+            'force_single_gpu': self.config['training']['force_single_gpu'],
+            'grad_accum_steps': self.config['training']['grad_accum_steps'],
             
             # Wandb params
             'use_wandb': self.config['wandb']['use_wandb'],
