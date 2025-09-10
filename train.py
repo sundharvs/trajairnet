@@ -28,7 +28,7 @@ def get_scheduler(optimizer, args, total_steps_per_epoch):
     elif args.scheduler_type == 'plateau':
         # ReduceLROnPlateau adapts the LR based on the validation metric's performance
         main_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.2, patience=3, verbose=True
+            optimizer, mode='min', factor=0.2, patience=3
         )
     else:
         # If no scheduler is specified, return None

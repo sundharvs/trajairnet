@@ -4,7 +4,7 @@
 
 # Dataset Configuration
 dataset:
-  folder: "/home/ssangeetha3/git/ctaf-intent-inference/dataset/"
+  folder: "../dataset/"
   name: "7daysJune"
   obs_len: 11
   pred_len: 120
@@ -45,7 +45,7 @@ intent:
   num_classes: 16
   csv_path: "../main_pipeline/2_categorize_radio_calls/7daysJune_FIXED_DEBUG_with_goals.csv"
   time_delta_threshold_minutes: 10  # Return "Unknown" intent if time delta > threshold
-  use_time_delta_feature: false  # Enable/disable time delta as neural network input feature
+  use_time_delta_feature: true  # Enable/disable time delta as neural network input feature
   
 # Training Parameters
 training:
@@ -53,7 +53,7 @@ training:
   total_epochs: 50
   evaluate: true
   save_model: true
-  model_path: "/home/ssangeetha3/git/ctaf-intent-inference/trajairnet/saved_models/"
+  model_path: "../trajairnet/saved_models/"
   force_single_gpu: true
   scheduler_type: "none"
   warmup_epochs: 0
@@ -70,7 +70,7 @@ belief:
   embed_dim: 64
   vocab_size: 16000  # Will be set by TOTAL_VOCAB_SIZE constant
   integration_mode: "concatenate"
-  transcripts_path: "../main_pipeline/2_categorize_radio_calls/radio_calls_with_goals_7daysJune.csv"
+  transcripts_path: "../main_pipeline/2_categorize_radio_calls/7daysJune_FIXED_DEBUG_with_goals.csv" 
 
 
 # Batch Configuration
