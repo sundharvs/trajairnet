@@ -307,8 +307,10 @@ class TrajectoryDataset(Dataset):
         self.intent_labels = torch.from_numpy(
             intent_list).type(torch.long)  # Intent labels as long integers
         
-        # Normalize time delta using log transform
-        normalized_time_delta = np.array([math.log(1 + td) for td in time_delta_list])
+        # Normalize time delta using log transform, clamp infinity values to 10 minutes
+        max_time_delta = 600.0  # 10 minutes in seconds
+        clamped_time_delta = [min(td, max_time_delta) if not math.isinf(td) else max_time_delta for td in time_delta_list]
+        normalized_time_delta = np.array([math.log(1 + td) for td in clamped_time_delta])
         self.time_delta_features = torch.from_numpy(
             normalized_time_delta).type(torch.float)  # Normalized time delta features
         self.pred_traj = torch.from_numpy(

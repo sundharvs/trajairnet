@@ -61,6 +61,7 @@ def train():
         parser.add_argument('--force_single_gpu', type=bool)
         parser.add_argument('--scheduler_type', type=str, default='none')
         parser.add_argument('--warmup_epochs', type=int, default=0)
+        parser.add_argument('--grad_clip_norm', type=float, default=1.0)
 
         sweep_args, _ = parser.parse_known_args()
         wandb_config = {k: v for k, v in vars(sweep_args).items() if v is not None}
@@ -206,13 +207,18 @@ def train():
                 scaler.scale(loss).backward()
                 tot_loss += loss.item() * accumulation_steps
 
-            if ddp_sync:
+            if ddp_sync or not is_ddp:
+                scaler.unscale_(optimizer)
+                grad_clip_norm = getattr(args, 'grad_clip_norm', 1.0)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad(set_to_none=True)
 
                 if scheduler and args.scheduler_type != 'plateau':
                     scheduler.step()
+            if i % 100 == 0:
+                print(loss.item())
 
         if not is_ddp:
             avg_train_loss = tot_loss / len(loader_train)
